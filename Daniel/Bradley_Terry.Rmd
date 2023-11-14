@@ -1,0 +1,83 @@
+---
+title: "Bradley-Terry"
+output: html_document
+date: "2023-11-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#IMPORTING DATA
+data<-read.csv('wta_matches_1970.csv')
+```
+
+
+```{r}
+#COLLECTING LIST OF NAMES
+
+#Blank list of names
+names<-list()
+
+#Adding a name from the winners without repetition
+for (i in data$winner_name){
+  if (!(i %in% names)){
+    names<-append(names,i)
+  }
+}
+
+#Adding a name from the losers without repetition
+for (i in data$loser_name){
+  if (!(i %in% names)){
+    names<-append(names,i)
+  }
+}
+```
+
+```{r}
+#Function for number of wins i has over j
+num_wins<-function(player1,player2){
+  wins<-data[(data$winner_name==player1 & data$loser_name==player2),]
+  return(dim(wins)[1])
+}
+```
+
+
+```{r}
+#Creating initial weight parameter p
+names<-names[1:200]
+
+p<-rep(1,length(names))
+
+num_iters<-1
+
+for(x in num_iters){
+  #We update the parameter p_i for every i
+  for(i in 1:length(p)){
+    p[i]<-new_p(i)
+  }
+}
+
+p
+```
+
+```{r}
+new_p<-function(i){
+  n<-length(p)
+  top<-rep(0,n)
+  bottom<-rep(0,n)
+  for (j in 1:n){
+    top[j]<-num_wins(names[i],names[j])*p[j]/(p[i]+p[j])
+    bottom[j]<-num_wins(names[j],names[i])/(p[i]+p[j])
+  }
+  return(sum(top)/sum(bottom))
+}
+```
+
+```{r}
+for (i in 1:2 & i in 4:5){
+  print(i)
+}
+```
+

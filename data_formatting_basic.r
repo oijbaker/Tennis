@@ -83,6 +83,3 @@ colnames(count_data) <- c("player1", "player2", "wins1", "wins2")
 matches <- data.frame(count_data)
 
 write.csv(matches, "data/matches.csv", row.names = FALSE)
-
-model = BTm(cbind(wins1, wins2), player1, player2, data=matches)
-model

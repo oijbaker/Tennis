@@ -24,7 +24,7 @@ df2 <- df[,c("winner_name", "loser_name")]
 
 winners = df2$winner_name
 losers = df2$loser_name
-players = union(winners, losers)
+players = intersect(winners, losers)
 
 # make a list of players with 0
 player_freqs <- setNames(rep(0, length(players)), players)
@@ -79,7 +79,28 @@ for (i in 1:ncol(df3)) {
   }
 }
 
+
+# NEED TO CHECK SET DIFFERENCE THEN SWITCH RELEVANT PLAYERS ROUND
+
+
 colnames(count_data) <- c("player1", "player2", "wins1", "wins2")
+
+# switch pairs so that each column has the same players in
+
 matches <- data.frame(count_data)
+
+# find last occurence of the first player1
+last <- max(which(matches$player1 == matches$player1[1]))
+
+# swap player1 with player 2 and wins1 with wins2 at index last
+matches[last, c("player1", "player2", "wins1", "wins2")] <- matches[last, c("player2", "player1", "wins2", "wins1")]
+
+missing_players = setdiff(matches$player2, matches$player1)
+
+# swap the first occurrence of each player in missing players as above
+for (i in 1:length(missing_players)) {
+  last <- min(which(matches$player2 == missing_players[i]))
+  matches[last, c("player1", "player2", "wins1", "wins2")] <- matches[last, c("player2", "player1", "wins2", "wins1")]
+}
 
 write.csv(matches, "data/matches.csv", row.names = FALSE)

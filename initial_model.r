@@ -1,9 +1,12 @@
 library(BradleyTerry2)
 
 matches <- read.csv("data/matches.csv")
-matches <- data.frame(matches[1:100,])
-typeof(matches$wins1)
+
+setdiff(matches$player1, matches$player2)
+setdiff(matches$player2, matches$player1)
+
 model <- BTm(cbind(wins1,
                    wins2),
-             player1, player2, data=matches)
+             as.factor(player1), as.factor(player2), data=matches)
 model
+

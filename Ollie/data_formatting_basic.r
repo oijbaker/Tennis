@@ -5,7 +5,7 @@ library(ggplot2)
 library(tidyr)
 
 # Define the file path
-file_paths <- c("data/atp_matches_2023.csv", "data/atp_matches_2022.csv",
+file_paths <- c("data/atp_matches_2022.csv",
                 "data/atp_matches_2021.csv", "data/atp_matches_2020.csv",
                 "data/atp_matches_2019.csv")
 

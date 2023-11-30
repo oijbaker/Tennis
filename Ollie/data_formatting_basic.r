@@ -5,18 +5,18 @@ library(ggplot2)
 library(tidyr)
 
 # Define the file path
-file_paths <- c("data/atp_matches_2022.csv",
-                "data/atp_matches_2021.csv", "data/atp_matches_2020.csv",
-                "data/atp_matches_2019.csv")
+file_paths <- c("data/atp_matches_2022.csv")#,
+#                 "data/atp_matches_2021.csv", "data/atp_matches_2020.csv",
+#                 "data/atp_matches_2019.csv")
 
 df <- read.csv(file_paths[1])
 
 n_players <- c(0)
 zero_fraction <- c(1)
 
-for (i in 2:(length(file_paths)-1)) {
-  df <- rbind(df, read.csv(file_paths[i]))
-}
+# for (i in 2:(length(file_paths)-1)) {
+#   df <- rbind(df, read.csv(file_paths[i]))
+# }
 
 # make a dataframe with the data we need
 df2 <- df[,c("winner_name", "loser_name")]
@@ -96,6 +96,13 @@ last <- max(which(matches$player1 == matches$player1[1]))
 matches[last, c("player1", "player2", "wins1", "wins2")] <- matches[last, c("player2", "player1", "wins2", "wins1")]
 
 missing_players = setdiff(matches$player2, matches$player1)
+print(missing_players)
+
+# repeat for the second player1
+last <- max(which(matches$player1 == matches$player1[last+1]))
+
+# swap player1 with player 2 and wins1 with wins2 at index last
+matches[last, c("player1", "player2", "wins1", "wins2")] <- matches[last, c("player2", "player1", "wins2", "wins1")]
 
 # swap the first occurrence of each player in missing players as above
 for (i in 1:length(missing_players)) {
@@ -103,4 +110,4 @@ for (i in 1:length(missing_players)) {
   matches[last, c("player1", "player2", "wins1", "wins2")] <- matches[last, c("player2", "player1", "wins2", "wins1")]
 }
 
-write.csv(matches, "data/matches.csv", row.names = FALSE)
+write.csv(matches, "data/matches3.csv", row.names = FALSE)

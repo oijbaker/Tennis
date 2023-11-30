@@ -1,4 +1,8 @@
-# Making an Initial Model
+---
+title: "Making an Initial Model"
+output: pdf_document
+date: ""
+---
 
 First we need to load the data and the BradleyTerry2 library.
 Then we can construct the initial model.
@@ -6,7 +10,7 @@ Then we can construct the initial model.
 ```{r}
 library(BradleyTerry2)
 
-matches <- read.csv("data/matches.csv")
+matches <- read.csv("../data/matches.csv")
 
 model <- BTm(cbind(wins1,
                    wins2),
@@ -19,7 +23,7 @@ Then, we can open a new file for the predictions.
 ```{r}
 
 # open the 2023 file and make predictions
-matches_2023 <- read.csv("data/atp_matches_2023.csv")
+matches_2023 <- read.csv("../data/atp_matches_2023.csv")
 pred_df <- matches_2023
 
 # make training data

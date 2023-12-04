@@ -262,10 +262,3 @@ TennisTidyr<-function(startyear,endyear,testset,numgames,filename){
 ```
 
 
-
-```{r}
-test<-TennisTidyr(2018,2022,2023,20,"tennis_wta/wta_matches_")
-
-test[1]
-```
-

@@ -194,3 +194,78 @@ points(num_games[noheight],col='red')
 abline(h=5)
 
 ```
+
+Finally, I will turn these data-cleaning functions into one function we will include in the R packages, with parameters for start year, end year, test set, and number of games played to be significant.
+
+```{r}
+# Creating super function
+
+TennisTidyr<-function(startyear,endyear,testset,numgames,filename){
+  # Adding errors for if years will not match the dataset
+  if (!(startyear > 1967 & startyear < 2023)){
+    return("Error: Start year must be between 1968 and 2022")
+  }
+  if (!(endyear > 1967 & endyear < 2023)){
+    return("Error: End year must be between 1968 and 2022")
+  }
+  if (!(testset > 1967 & testset < 2024)){
+    return("Error: Test set must be between 1968 and 2023")
+  }
+  if (startyear > endyear){
+    return("Error: Start year must be less than end year")
+  }
+  if (endyear > testset){
+    return("Error: End year must be less than test set")
+  }
+  
+  #Creating blank dataset for training set, then appending each year
+  train<-tibble()
+  num_names<-c()
+  for (i in startyear:endyear){
+    data<-read_csv(paste(filename,as.character(i),".csv", sep=""),show_col_types = FALSE)
+    num_names<-append(num_names,c(as.matrix(data[,'winner_name']),as.matrix(data[,'loser_name'])))
+    train<-rbind(train,data)
+  }
+  #List of all unique names in that time period
+  names<-unique(num_names)
+  
+  #Number of games played per player
+  N<-length(names)
+  num_games<-rep(0,N)
+  for (i in 1:N){
+    num_games[i]<-length(which(num_names==names[i]))
+  }
+  
+  #Players who played in the test set (2023)
+  test_set<-read_csv(paste(filename,as.character(testset),".csv", sep=""),show_col_types = FALSE)
+  test_names<-c(as.matrix(test_set[,'winner_name']),as.matrix(test_set[,'loser_name']))
+
+  #List of 'significant' players
+  main_names<-names[num_games > numgames & names %in% test_names]
+  
+  #Only selecting columns we currently care about
+  train<-train[,c('surface','winner_name','winner_hand','winner_ht','winner_age','loser_name','loser_hand','loser_ht','loser_age')]
+  test<-test_set[,c('surface','winner_name','winner_hand','winner_ht','winner_age','loser_name','loser_hand','loser_ht','loser_age')]
+
+  #Only selecting players we care about
+  train<-train[train$winner_name %in% main_names,]
+  train<-train[train$loser_name %in% main_names,]
+  
+  test<-test[test$winner_name %in% main_names,]
+  test<-test[test$loser_name %in% main_names,]
+  
+  
+  return(list(test,train))
+}
+
+
+```
+
+
+
+```{r}
+test<-TennisTidyr(2018,2022,2023,20,"tennis_wta/wta_matches_")
+
+test[1]
+```
+

@@ -1,0 +1,215 @@
+---
+title: "EDA"
+output: html_document
+date: "2023-11-15"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#List of years from 1968 to 2023
+years<-seq(1968,2023)
+
+#Test set year
+test_year<-2023
+
+#Loading test set
+library(readr)
+test_set<-read_csv(paste("tennis_wta/wta_matches_",as.character(test_year),".csv", sep=""),show_col_types = FALSE)
+```
+
+```{r}
+#Checking if a column is empty
+containsdata<-function(column){
+  if (all(is.na(column))){
+    return(FALSE)
+  }
+  else{
+    return(TRUE)
+  }
+}
+
+#How many columns contain data
+fullcolumns<-function(data){
+  num<-0
+  for (i in 1:dim(data)[2]){
+    if (containsdata(data[,i])){
+      num<-num+1
+    }
+  }
+  return(num)
+}
+```
+
+```{r}
+#Checking for missing data in age
+ismissing_age<-function(data){
+  num_missing<-0
+  for (column in c('winner_age','loser_age')){
+    for (j in 1:dim(data[,column])[1]){
+      if (all(is.na(data[j,column]))){
+        num_missing<-num_missing+1
+      }
+    }
+  }
+  return(num_missing)
+}
+
+#Checking for missing data in height
+ismissing_height<-function(data){
+  num_missing<-0
+  for (column in c('winner_ht','loser_ht')){
+    for (j in 1:dim(data[,column])[1]){
+      if (all(is.na(data[j,column]))){
+        num_missing<-num_missing+1
+      }
+    }
+  }
+  return(num_missing)
+}
+```
+
+
+```{r}
+#Finding amount of columns, missing height and age data for each year
+
+M<-length(years)
+fullcols<-rep(0,M)
+mis_ages<-rep(0,M)
+mis_hts<-rep(0,M)
+for (i in 1:M){
+  data<-read_csv(paste("tennis_wta/wta_matches_",as.character(years[i]),".csv", sep=""),show_col_types = FALSE)
+  fullcols[i]<-fullcolumns(data)
+  mis_ages[i]<-ismissing_age(data)/(2*dim(data)[1])
+  mis_hts[i]<-ismissing_height(data)/(2*dim(data)[1])
+}
+```
+
+```{r}
+#Plotting results 
+library(ggplot2)
+par(mfrow=c(1,3))
+barplot(fullcols,names.arg = years,xlab='year',ylab='Number of columns',main='Actual Columns')
+barplot(mis_ages,names.arg = years,xlab='year',ylab='Proportion of Missing Data',main='Ages')
+barplot(mis_hts,names.arg = years,xlab='year',ylab='Proportion of Missing Data',main='Heights')
+```
+
+```{r}
+#Finding which players we can reasonably discard
+library(dplyr)
+library(tidyr)
+
+#Creating array of all distinct competitors from 2020-2022
+num_names<-c()
+for (i in 53:(M-1)){
+  data<-read_csv(paste("tennis_wta/wta_matches_",as.character(years[i]),".csv", sep=""),show_col_types = FALSE)
+  num_names<-append(num_names,c(as.matrix(data[,'winner_name']),as.matrix(data[,'loser_name'])))
+}
+names<-unique(num_names)
+```
+
+```{r}
+#Finding how many games each player has played from 2020-2022
+N<-length(names)
+num_games<-rep(0,N)
+for (i in 1:N){
+  num_games[i]<-length(which(num_names==names[i]))
+}
+
+#Plotting results
+par(mfrow=c(1,2))
+hist(num_games,breaks=200,xlab='Games Played',main='Number of Games played per player (2020-2022)')
+hist(num_games,breaks=200,xlim=c(1,10),xlab='Games Played',main='Number of Games played per player (2020-2022)',cex=.2)
+```
+
+```{r}
+#Players who played in the test set (2023)
+test_names<-c(as.matrix(test_set[,'winner_name']),as.matrix(test_set[,'loser_name']))
+
+#We can only keep players who played more than 5 games in the past 3 years and are still playing in 
+#2023
+main_names<-names[num_games > 5 & names %in% test_names]
+```
+
+```{r}
+#CLEANING DATA
+
+#Creating combined data frame of 2020-2022
+df1<-tibble()
+for (i in 53:(M-1)){
+  data<-read_csv(paste("tennis_wta/wta_matches_",as.character(years[i]),".csv", sep=""),show_col_types = FALSE)
+  df1<-rbind(df1,data)
+}
+
+#Only selecting columns we currently care about
+df<-df1[,c('surface','winner_name','winner_hand','winner_ht','winner_age','loser_name','loser_hand','loser_ht','loser_age')]
+
+#Only selecting players we care about
+df<-df[df$winner_name %in% main_names,]
+df<-df[df$loser_name %in% main_names,]
+
+#Check difference in missing data
+ismissing_age(df)
+ismissing_height(df)
+```
+
+
+
+```{r}
+#Checking if a Player has a height or not
+noheight<-rep(FALSE,N)
+for (i in 1:N){
+  name<-names[i]
+  if (name %in% df1$winner_name){
+    j<-min(which(df1[,'winner_name']==name))
+    height<-df1[j,'winner_ht']
+  }
+  if (name %in% df1$loser_name){
+    j<-min(which(df1[,'loser_name']==name))
+    height<-df1[j,'loser_ht']
+  }
+  if (is.na(height)){
+    noheight[i]<-TRUE
+  }
+}
+
+#Plotting each player against their number of games played, with different colors for whether their height is missing or not.
+plot(num_games[!noheight],col='blue',xlab='Player Index',ylab='Number of Games Played',main='Missing Heights')
+points(num_games[noheight],col='red')
+abline(h=5)
+
+```
+
+```{r}
+# MORE FUCKIN AROUND
+L<-30
+test_names<-main_names[1:L]
+first_app<-rep(0,L)
+last_app<-rep(0,L)
+
+for(j in 1:L){
+  name<-test_names[j]
+  years_active<-c()
+  for (i in 30:M){
+  data<-read_csv(paste("tennis_wta/wta_matches_",as.character(years[i]),".csv", sep=""),show_col_types = FALSE)
+  allnames<-c(as.matrix(data[,'winner_name']),as.matrix(data[,'loser_name']))
+  if(name %in% allnames){
+    years_active<-append(years_active,years[i])
+  }
+  }
+  first_app[j]<-min(years_active)
+  last_app[j]<-max(years_active)
+}
+```
+
+```{r}
+plot(x=c(),y=c(),xlim=c(years[30],years[M]),ylim=c(0,L))
+for(j in 1:L){
+  segments(x0=first_app[j],y0=j,x1=last_app[j],y1=j,lend=3)
+}
+```
+
+
+

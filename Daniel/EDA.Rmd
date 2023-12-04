@@ -1,12 +1,18 @@
 ---
 title: "EDA"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 date: "2023-11-15"
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+Here we will be performing some basic analysis on the data to get an idea of any major problems with the dataset before we build the model. I.e. if we find any irrelevant data that we can remove this will greatly simplify things later down the line.
+
+Firstly we create our set of years and define the test set to be the year 2023
 
 ```{r}
 #List of years from 1968 to 2023
@@ -19,6 +25,8 @@ test_year<-2023
 library(readr)
 test_set<-read_csv(paste("tennis_wta/wta_matches_",as.character(test_year),".csv", sep=""),show_col_types = FALSE)
 ```
+
+Next we want to see how much data is actually available. From briefly skimming through the datasets we saw that not all years contain the same amount of variables. Therefore we quantify the amount of variables by measuring how many columns in the data frame actually contain data. Then we will also potentially use age and height as covariates in our model, although again by quickly looking at the .csv files we can see a fair amount of missing data. Hence we also measure this and see if it changes by year.
 
 ```{r}
 #Checking if a column is empty
@@ -71,8 +79,7 @@ ismissing_height<-function(data){
 }
 ```
 
-
-```{r}
+```{r include=FALSE}
 #Finding amount of columns, missing height and age data for each year
 
 M<-length(years)
@@ -87,6 +94,8 @@ for (i in 1:M){
 }
 ```
 
+By plotting the amount of variables (non-zero columns) and percentage of missing data across time, we can see that the older data is much worse than the current, which is to be expected. For instance, the data around 1970 only has about half the variables recorded as in 2023, and over half the heights of players are not recorded. We can also see that for modern data, the proportion of missing age data is negligible. As expected also the amount of height data collected increases with time, although strangely falters past the 2010s. However we will see later why this might be.
+
 ```{r}
 #Plotting results 
 library(ggplot2)
@@ -96,7 +105,9 @@ barplot(mis_ages,names.arg = years,xlab='year',ylab='Proportion of Missing Data'
 barplot(mis_hts,names.arg = years,xlab='year',ylab='Proportion of Missing Data',main='Heights')
 ```
 
-```{r}
+Now we have justification for sticking mostly to modern data, we can start to think about which players are relevant in our model. We suspect that not all players need to necessarily be included. For instance, a rogue player that has only played one game will input very little into our model's predictive power. We can quantify this suspicion by plotting each players total number of games played from 2020-2022.
+
+```{r include=FALSE}
 #Finding which players we can reasonably discard
 library(dplyr)
 library(tidyr)
@@ -109,6 +120,8 @@ for (i in 53:(M-1)){
 }
 names<-unique(num_names)
 ```
+
+By plotting a histogram of frequencies (Left), it is immediately obvious that our worries were correct, and a large proportion of players have played an insignificant amount of games over three years. In fact by zooming in on this histogram (right), a lot of players have indeed only played one game and then never played again.
 
 ```{r}
 #Finding how many games each player has played from 2020-2022
@@ -124,6 +137,8 @@ hist(num_games,breaks=200,xlab='Games Played',main='Number of Games played per p
 hist(num_games,breaks=200,xlim=c(1,10),xlab='Games Played',main='Number of Games played per player (2020-2022)',cex=.2)
 ```
 
+To then create a list of 'significant' players, we only include players from 2020-2022 who have played more than 5 games over those 3 years, and have then also played again in 2023 (So we can predict their performance in the test set).
+
 ```{r}
 #Players who played in the test set (2023)
 test_names<-c(as.matrix(test_set[,'winner_name']),as.matrix(test_set[,'loser_name']))
@@ -133,7 +148,9 @@ test_names<-c(as.matrix(test_set[,'winner_name']),as.matrix(test_set[,'loser_nam
 main_names<-names[num_games > 5 & names %in% test_names]
 ```
 
-```{r}
+Using this, we can then clean the data by only including the variables we care about, and then only including players from the list of 'significant' players.
+
+```{r include=FALSE}
 #CLEANING DATA
 
 #Creating combined data frame of 2020-2022
@@ -149,13 +166,9 @@ df<-df1[,c('surface','winner_name','winner_hand','winner_ht','winner_age','loser
 #Only selecting players we care about
 df<-df[df$winner_name %in% main_names,]
 df<-df[df$loser_name %in% main_names,]
-
-#Check difference in missing data
-ismissing_age(df)
-ismissing_height(df)
 ```
 
-
+Returning to the confusing amount of missing height data from 2010 onwards, we can test whether a lot of this missing data comes from these rogue players who have only played a few games. By plotting each players number of games played, we can see that indeed the players with missing data (red) have been removed in our cleaned data, as most have played less than 5 games (black line). Hence this cleaned data has significantly less missing data than the original.
 
 ```{r}
 #Checking if a Player has a height or not
@@ -181,35 +194,3 @@ points(num_games[noheight],col='red')
 abline(h=5)
 
 ```
-
-```{r}
-# MORE FUCKIN AROUND
-L<-30
-test_names<-main_names[1:L]
-first_app<-rep(0,L)
-last_app<-rep(0,L)
-
-for(j in 1:L){
-  name<-test_names[j]
-  years_active<-c()
-  for (i in 30:M){
-  data<-read_csv(paste("tennis_wta/wta_matches_",as.character(years[i]),".csv", sep=""),show_col_types = FALSE)
-  allnames<-c(as.matrix(data[,'winner_name']),as.matrix(data[,'loser_name']))
-  if(name %in% allnames){
-    years_active<-append(years_active,years[i])
-  }
-  }
-  first_app[j]<-min(years_active)
-  last_app[j]<-max(years_active)
-}
-```
-
-```{r}
-plot(x=c(),y=c(),xlim=c(years[30],years[M]),ylim=c(0,L))
-for(j in 1:L){
-  segments(x0=first_app[j],y0=j,x1=last_app[j],y1=j,lend=3)
-}
-```
-
-
-

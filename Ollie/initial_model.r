@@ -1,6 +1,6 @@
 library(BradleyTerry2)
 
-matches <- read.csv("data/matches.csv")
+matches <- read.csv("data/matches_no_22.csv")
 
 model <- BTm(cbind(wins1,
                    wins2),
@@ -9,7 +9,8 @@ model <- BTm(cbind(wins1,
 
 # open the 2023 file and make predictions
 matches_2023 <- read.csv("data/atp_matches_2023.csv")
-pred_df <- matches_2023
+matches_2022 <- read.csv("data/atp_matches_2022.csv")
+pred_df <- rbind(matches_2023, matches_2022)
 
 # make training data
 players <- unique(c(matches$player1, matches$player2))
@@ -43,7 +44,7 @@ df_coeff[worst_player,] <- rep(0, 2)
 
 predict <- function(player1, player2) {
   lambda1 <- df_coeff[player1,1]
-  lambda2 <- df_coeff[player2,2]
+  lambda2 <- df_coeff[player2,1]
 
   pred <- exp(lambda1) / (exp(lambda1) + exp(lambda2))
   return(c(pred>0.5, pred))

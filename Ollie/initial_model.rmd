@@ -76,7 +76,7 @@ Now we can make the predictions.
 ```{r}
 predict <- function(player1, player2) {
   lambda1 <- df_coeff[player1,1]
-  lambda2 <- df_coeff[player2,2]
+  lambda2 <- df_coeff[player2,1]
 
   pred <- exp(lambda1) / (exp(lambda1) + exp(lambda2))
   return(c(pred>0.5, pred))
@@ -102,4 +102,4 @@ draws$correct <- draws$pred > 0.5
 sum(draws$correct) / nrow(draws)
 ```
 
-The model achieves 0.97 accuracy.
+The model achieves 0.62 accuracy.

@@ -3,6 +3,7 @@ library(utils)
 library(BradleyTerry2)
 library(ggplot2)
 library(tidyr)
+library(dplyr)
 
 # Define the file path
 file_paths <- c("data/atp_matches_2021.csv", "data/atp_matches_2020.csv",
@@ -84,31 +85,37 @@ for (i in 1:ncol(df3)) {
 # NEED TO CHECK SET DIFFERENCE THEN SWITCH RELEVANT PLAYERS ROUND
 
 
-colnames(count_data) <- c("player1", "player2", "wins1", "wins2")
+# colnames(count_data) <- c("player1", "player2", "wins1", "wins2")
 
-# switch pairs so that each column has the same players in
+# # switch pairs so that each column has the same players in
 
-matches <- data.frame(count_data)
+# matches <- data.frame(count_data)
 
-# find last occurence of the first player1
-last <- max(which(matches$player1 == matches$player1[1]))
+# # find last occurence of the first player1
+# last <- max(which(matches$player1 == matches$player1[1]))
 
-# swap player1 with player 2 and wins1 with wins2 at index last
-matches[last, c("player1", "player2", "wins1", "wins2")] <- matches[last, c("player2", "player1", "wins2", "wins1")]
+# # swap player1 with player 2 and wins1 with wins2 at index last
+# matches[last, c("player1", "player2", "wins1", "wins2")] <- matches[last, c("player2", "player1", "wins2", "wins1")]
 
-missing_players = setdiff(matches$player2, matches$player1)
-print(missing_players)
+# missing_players = setdiff(matches$player2, matches$player1)
+# print(missing_players)
 
-# repeat for the second player1
-last <- max(which(matches$player1 == matches$player1[last+1]))
+# # repeat for the second player1
+# last <- max(which(matches$player1 == matches$player1[last+1]))
 
-# swap player1 with player 2 and wins1 with wins2 at index last
-matches[last, c("player1", "player2", "wins1", "wins2")] <- matches[last, c("player2", "player1", "wins2", "wins1")]
+# # swap player1 with player 2 and wins1 with wins2 at index last
+# matches[last, c("player1", "player2", "wins1", "wins2")] <- matches[last, c("player2", "player1", "wins2", "wins1")]
 
-# swap the first occurrence of each player in missing players as above
-for (i in 1:length(missing_players)) {
-  last <- min(which(matches$player2 == missing_players[i]))
-  matches[last, c("player1", "player2", "wins1", "wins2")] <- matches[last, c("player2", "player1", "wins2", "wins1")]
-}
+# # swap the first occurrence of each player in missing players as above
+# for (i in 1:length(missing_players)) {
+#   last <- min(which(matches$player2 == missing_players[i]))
+#   matches[last, c("player1", "player2", "wins1", "wins2")] <- matches[last, c("player2", "player1", "wins2", "wins1")]
+# }
+
+p1 <- factor(count_data$player1, levels = players)[rep(TRUE, nrow(count_data))]
+p2 <- factor(count_data$player2, levels = players)[rep(TRUE, nrow(count_data))]
+p1
+
+count_data <- count_data %>% mutate(player1 = p1, player2 = p2)
 
 write.csv(matches, "data/matches_no_22.csv", row.names = FALSE)

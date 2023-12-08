@@ -10,7 +10,7 @@ Then we can construct the initial model.
 ```{r}
 library(BradleyTerry2)
 
-matches <- read.csv("../data/matches.csv")
+matches <- read.csv("data/matches.csv")
 
 model <- BTm(cbind(wins1,
                    wins2),
@@ -23,7 +23,7 @@ Then, we can open a new file for the predictions.
 ```{r}
 
 # open the 2023 file and make predictions
-matches_2023 <- read.csv("../data/atp_matches_2023.csv")
+matches_2023 <- read.csv("data/atp_matches_2023.csv")
 pred_df <- matches_2023
 
 # make training data
@@ -103,3 +103,15 @@ sum(draws$correct) / nrow(draws)
 ```
 
 The model achieves 0.62 accuracy.
+
+```{r}
+mean(draws[draws$pred > 0.5,]$pred)
+```
+
+The average predicted probability of a win is 0.70.
+
+```{r}
+mean(log(draws[draws$pred > 0.5,]$pred))
+```
+
+The average log predicted probability of a win is -0.38.

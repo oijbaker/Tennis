@@ -148,3 +148,8 @@ Finally, we write the dataframe to a csv file.
 ```{r}
 write.csv(matches, "data/matches.csv", row.names = FALSE)
 ```
+
+```{r}
+# compute 255 choose 2
+
+```

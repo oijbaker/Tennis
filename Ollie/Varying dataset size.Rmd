@@ -58,7 +58,7 @@ for (match_name in match_names) {
 
     predict <- function(player1, player2) {
     lambda1 <- df_coeff[player1,1]
-    lambda2 <- df_coeff[player2,2]
+    lambda2 <- df_coeff[player2,1]
 
     pred <- exp(lambda1) / (exp(lambda1) + exp(lambda2))
     return(c(pred>0.5, pred))

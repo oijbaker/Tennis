@@ -4,21 +4,45 @@ library(BradleyTerry2)
 
 # Base functions for library
 
-getWinLossBinomial(startyear, endyear, testset, numgames, filename) {
+getWinLossBinomial <- function(startyear, endyear, testset, numgames, filename) {
     # Get win loss data in binomial format
     # startyear: first year to include
     # endyear: last year to include
     # numgames: minimum number of games played by each player
 
     data <- TennisTidyr(startyear, endyear, testset, numgames, filename)
-    train <- data[[1]]
-    test <- data[[2]]
-    main_names <- data[[3]]
+    train <- data$train
+    test <- data$test
+    main_names <- data$main_names
+
+    N <- length(main_names)
+
+    winmat <- matrix(data = 0, ncol = N, nrow = N,
+                     dimnames = list(main_names, main_names))
+
+    M <- dim(train)[1]
+
+    for (i in 1:M){
+      winner <- train$winner_name[i]
+      loser <- train$loser_name[i]
+      winmat[winner, loser] <- winmat[winner, loser] + 1
+    }
 
     # Get win loss data in binomial format
-    wl_bin <- countsToBinomial(table(train$winner_name, train$loser_name))
+    wl_bin <- countsToBinomial(winmat)
 
     return(wl_bin)
+}
+
+predict <- function(player1, player2, df_coeff) {
+  lambda1 <- df_coeff[player1,1]
+  lambda2 <- df_coeff[player2,1]
+  if (is.na(lambda1)) {
+    cat(player1, " ", player2, "\n")
+    cat(lambda1, " ", lambda2, "\n")
+  }
+  pred <- exp(lambda1) / (exp(lambda1) + exp(lambda2))
+  return(c(pred>0.5, pred))
 }
 
 countsToBinomial <- function(xtab){
@@ -93,5 +117,5 @@ TennisTidyr <- function(startyear, endyear, testset, numgames, filename) {
   train <- train[train$loser_name %in% main_names, ]
   test <- test[test$winner_name %in% main_names, ]
   test <- test[test$loser_name %in% main_names, ]
-  return(list(train, test, main_names))
+  return(list(train=train, test=test, main_names=main_names))
 }

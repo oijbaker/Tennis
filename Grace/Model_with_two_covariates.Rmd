@@ -120,6 +120,7 @@ wta <- list(matches=matches, variables=df_2vars)
 Using the `BTm` function in the BradleyTerry2 package, we fit the model:
 
 ```{r}
+library(BradleyTerry2)
 model_2vars <- BTm(1, Winner, Loser, ~ Hand[..] + Height[..], data = wta)
 summary(model_2vars)
 ```

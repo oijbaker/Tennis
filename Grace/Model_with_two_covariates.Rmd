@@ -16,7 +16,7 @@ First, we load the .csv files for all the WTA matches from 1968-present.
 library(readr)
 library(plyr)
 
-myfiles <- list.files(path = "/home/cr23868/Documents/Tennis/R_code/tennis_wta-master", pattern = ".csv", full.names=TRUE)
+myfiles <- list.files(path = "/home/cr23868/Documents/Tennis/R_code/tennis_wta-master", pattern = ".csv", full.names=TRUE) # change directory
 dat_csv <- ldply(myfiles, read_csv)
 View(dat_csv)
 ```

@@ -1,0 +1,125 @@
+---
+title: "Model with 2 covariates"
+author: "Grace Yan"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Importing .csv files
+
+First, we load the .csv files for all the WTA matches from 1968-present.
+
+```{r}
+library(readr)
+library(plyr)
+
+myfiles <- list.files(path = "/home/cr23868/Documents/Tennis/R_code/tennis_wta-master", pattern = ".csv", full.names=TRUE)
+dat_csv <- ldply(myfiles, read_csv)
+View(dat_csv)
+```
+
+### Data wrangling
+
+We extract the columns that we need. (We'll probably have to use EDA to justify the importance/unimportance of each variable.) These consist of: winner_hand, winner_ht, w_ace, w_df, w_svpt, w_1stIn, w_1stWon, w_2ndWon, w_SvGms, w_bpSaved, w_bpFaced, and their loser counterparts. (We'll add other variables like surface later - for now let's go with a simpler model as an experiment.)
+
+Here, I will only include the winner_hand and winner_ht variables and their loser counterparts.
+
+First, we extract players who have played at least 20 matches...
+
+```{r}
+library(tidyr)
+library(dplyr)
+
+##### Removing unnecessary columns and NAs
+data <- data.frame(dat_csv[,c("winner_name", "winner_hand", "winner_ht", "w_ace", "w_df", "w_svpt", "w_1stIn", "w_1stWon",
+                              "w_2ndWon", "w_SvGms", "w_bpSaved", "w_bpFaced", "loser_name", "loser_hand", "loser_ht",
+                              "l_ace", "l_df", "l_svpt", "l_1stIn", "l_1stWon", "l_2ndWon", "l_SvGms", "l_bpSaved",
+                              "l_bpFaced")])
+data <- na.omit(data)
+attach(data)
+
+##### Extracting players who have won 30+ matches
+all_players <- data.frame(Player=c(winner_name,loser_name))
+count <- count(all_players, Player, name="Total_matches") # counts number of rows each unique name has in all_players, i.e. each unique player's number of total wins & losses
+players <- filter(count, Total_matches >= 20) # extracts players who have played 20+ matches
+```
+
+Now we will have to remake the columns. Starting with 'winner_hand'...
+
+```{r}
+# Making a dataframe showing the hand of each player
+hand_winners <- data.frame(Player=winner_name, Hand=winner_hand)
+hand_losers <- data.frame(Player=loser_name, Hand=loser_hand)
+hand <- bind_rows(hand_winners, hand_losers)
+hand <- distinct(hand)
+
+# Extracting players who played 30+ matches
+indices1 <- hand$Player %in% players$Player
+hand <- hand[indices1,]
+
+# Getting rid of players whose hand is unknown
+df_hand <- filter(hand, Hand != "U")
+```
+
+Then 'winner_ht'...
+
+```{r}
+height_winners <- data.frame(Player=winner_name, Height=winner_ht)
+height_losers <- data.frame(Player=loser_name, Height=loser_ht)
+height <- bind_rows(height_winners, height_losers)
+height <- distinct(height)
+
+# Making sure that the players in 'height' are only those already in our 'df_hand' dataframe
+indices2 <- height$Player %in% df_hand$Player
+df_height <- height[indices2,]
+
+# Making sure that the players in 'df_hand' are the same as those in 'df_height'
+indices0 <- df_hand$Player %in% df_height$Player
+which(indices0 == FALSE) # none
+```
+
+We make a data frame called 'df_2vars' that consists of the players and the two variables 'Hand' and 'Height' that will be included in the model:
+
+```{r}
+# Bind columns
+df_2vars <- left_join(df_hand, df_height, by="Player")
+
+# Convert characters into factors
+df_2vars$Player <- as.factor(df_2vars$Player)
+df_2vars$Hand <- as.factor(df_2vars$Hand)
+```
+
+We also make a data frame called 'matches', consisting of all the matches that will be considered for the model.
+
+```{r}
+# Include only the matches where both players are in df_2vars
+matches <- data.frame(Winner=winner_name, Loser=loser_name)
+
+indices_w <- matches$Winner %in% df_2vars$Player
+indices_l <- matches$Loser %in% df_2vars$Player
+ind <- indices_w==TRUE & indices_l==TRUE
+
+matches <- matches[ind,]
+
+# Convert characters into factors
+matches$Winner <- as.factor(matches$Winner)
+matches$Loser <- as.factor(matches$Loser)
+```
+
+Now that we have extracted all the information we need from the dataset, we can make it into the following list:
+
+```{r}
+wta <- list(matches=matches, variables=df_2vars)
+```
+
+# Fitting the model using the BradleyTerry2 package
+
+Using the `BTm` function in the BradleyTerry2 package, we fit the model:
+
+```{r}
+model_2vars <- BTm(1, Winner, Loser, ~ Hand[..] + Height[..], data = wta)
+summary(model_2vars)
+```

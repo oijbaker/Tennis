@@ -1,0 +1,83 @@
+# Motivating including surface parameters
+
+We will fit the model on the following data:
+
+```{r}
+library(BradleyTerry2)
+
+grass_data <- read.csv("data/matches_grass.csv")
+hard_data <- read.csv("data/matches_hard.csv")
+clay_data <- read.csv("data/matches_clay.csv")
+grass_data
+```
+
+
+```{r}
+surface_names <- c("grass", "hard", "clay")
+surface_data <- list(grass=grass_data, hard=hard_data, clay=clay_data)
+```
+
+Fit the model
+
+```
+```{r}
+print(setdiff(unique(grass_data$player1), unique(grass_data$player2)))
+print(setdiff(unique(grass_data$player2), unique(grass_data$player1)))
+btm_grass <- BTm(cbind(win1, win2), as.factor(player1), as.factor(player2), data=grass_data)
+s_grass <- summary(btm_grass)
+s_grass
+```
+
+```{r}
+print(setdiff(unique(hard_data$player1), unique(hard_data$player2)))
+print(setdiff(unique(hard_data$player2), unique(hard_data$player1)))
+btm_hard <- BTm(cbind(win1, win2), as.factor(player1), as.factor(player2), data=hard_data)
+s_hard <- summary(btm_hard)
+s_hard
+```
+
+```{r}
+print(setdiff(unique(clay_data$player1), unique(clay_data$player2)))
+print(setdiff(unique(clay_data$player2), unique(clay_data$player1)))
+btm_clay <- BTm(cbind(win1, win2), as.factor(player1), as.factor(player2), data=clay_data)
+s_clay <- summary(btm_clay)
+s_clay
+```
+
+Find top 10 players on each surface
+
+```{r}
+df_coeff <- as.data.frame(s_grass$coefficients)
+rownames(df_coeff) <- lapply(rownames(df_coeff),
+                             function(x) substr(x, 3, nchar(x)))
+# sort based on coefficient
+df_coeff <- df_coeff[order(df_coeff$Estimate, decreasing=TRUE),]
+df_coeff[1:10,]
+```
+
+```{r}
+df_coeff <- as.data.frame(s_hard$coefficients)
+rownames(df_coeff) <- lapply(rownames(df_coeff),
+                             function(x) substr(x, 3, nchar(x)))
+# sort based on coefficient
+df_coeff <- df_coeff[order(df_coeff$Estimate, decreasing=TRUE),]
+df_coeff[1:10,]
+```
+
+```{r}
+df_coeff <- as.data.frame(s_clay$coefficients)
+rownames(df_coeff) <- lapply(rownames(df_coeff),
+                             function(x) substr(x, 3, nchar(x)))
+# sort based on coefficient
+df_coeff <- df_coeff[order(df_coeff$Estimate, decreasing=TRUE),]
+df_coeff[1:10,]
+```
+
+```{r}
+sum(grass_data$win1)+sum(grass_data$win2)
+sum(hard_data$win1)+sum(hard_data$win2)
+sum(clay_data$win1)+sum(clay_data$win2)
+```
+
+```{r}
+```

@@ -80,4 +80,5 @@ sum(clay_data$win1)+sum(clay_data$win2)
 ```
 
 ```{r}
+BTabilities(btm_grass)
 ```

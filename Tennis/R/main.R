@@ -47,17 +47,17 @@ predict <- function(player1, player2, df_coeff) {
 
 countsToBinomial <- function(xtab){
 
-    # Throw an error if xtab is not square
-    if (nrow(xtab) != ncol(xtab)) stop("xtab must be square")
+  # Throw an error if xtab is not square
+  if (nrow(xtab) != ncol(xtab)) stop("xtab must be square")
 
-    players <- rownames(xtab)
-    comb <- t(combn(nrow(xtab), 2))
-    won <- xtab[comb]
-    lost <- t(xtab)[comb]
-    res <- !(won == 0 & lost == 0)
-    player1 <- factor(players[comb[,1]], levels = players)[res]
-    player2 <- factor(players[comb[,2]], levels = players)[res]
-    data.frame(player1, player2, win1 = won[res], win2 = lost[res])
+  players <- rownames(xtab)
+  comb <- t(combn(nrow(xtab), 2))
+  won <- xtab[comb]
+  lost <- t(xtab)[comb]
+  res <- !(won == 0 & lost == 0)
+  player1 <- factor(players[comb[,1]], levels = players)[res]
+  player2 <- factor(players[comb[,2]], levels = players)[res]
+  data.frame(player1, player2, win1 = won[res], win2 = lost[res])
 }
 
 TennisTidyr <- function(startyear, endyear, testset, numgames, filename) {
@@ -106,7 +106,7 @@ TennisTidyr <- function(startyear, endyear, testset, numgames, filename) {
   main_names <- names[num_games > numgames & names %in% test_names]
   #Only selecting columns we currently care about
   train <- train[, c('surface', 'winner_name', 'winner_hand', 'winner_ht',
-                     'winner_age', 'loser_name', 'loser_hand', 'loser_ht', 
+                     'winner_age', 'loser_name', 'loser_hand', 'loser_ht',
                      'loser_age')]
   test <- test_set[,c('surface', 'winner_name', 'winner_hand', 'winner_ht',
                       'winner_age', 'loser_name', 'loser_hand', 'loser_ht',

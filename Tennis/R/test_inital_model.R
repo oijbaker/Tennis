@@ -17,7 +17,7 @@ for (start_year in start:(end-1)) {
     wl_matrix = getWinLossBinomial(start_year, end-1, end,
                                    20, here("data/wta_matches_"))
     train_matrices[[start_year]] = wl_matrix
-    
+
     if (start_year == start) {
       players <- as.vector(unique(wl_matrix$player1))
     }
@@ -37,7 +37,7 @@ for (start_year in 2013:2022) {
     s <- summary(model)
     names <- sort(players)
     ref_player <- players[1]
-    
+
     df_coeff <- as.data.frame(s$coefficients)
     rownames(df_coeff) <- lapply(rownames(df_coeff),
                                  function(x) substr(x, 3, nchar(x)))

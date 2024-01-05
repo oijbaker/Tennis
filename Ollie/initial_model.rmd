@@ -4,8 +4,7 @@ output: pdf_document
 date: ""
 ---
 
-First we need to load the data and the BradleyTerry2 library.
-Then we can construct the initial model.
+First we need to load the data and the BradleyTerry2 library. Then we can construct the initial model.
 
 ```{r}
 library(BradleyTerry2)
@@ -32,8 +31,7 @@ matches_2023 <- matches_2023[matches_2023$winner_name %in% players & matches_202
 matches_2023 <- matches_2023[, c("winner_name", "loser_name")]
 ```
 
-We now need to make all of the coefficients in the model positive.
-This is done by setting the 'worst' player as the reference category.
+We now need to make all of the coefficients in the model positive. This is done by setting the 'worst' player as the reference category.
 
 ```{r}
 s <- summary(model)
@@ -59,8 +57,7 @@ rownames(df_coeff) <- lapply(rownames(df_coeff),
                              function(x) substr(x, 3, nchar(x)))
 ```
 
-But if not, then 'worst_player' will be NULL. Also, the coefficients of the
-worst player are not included in the summary, so we need to add them.
+But if not, then 'worst_player' will be NULL. Also, the coefficients of the worst player are not included in the summary, so we need to add them.
 
 ```{r}
 # if worst_player is NULL

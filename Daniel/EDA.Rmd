@@ -100,9 +100,9 @@ By plotting the amount of variables (non-zero columns) and percentage of missing
 #Plotting results 
 library(ggplot2)
 par(mfrow=c(1,3))
-barplot(fullcols,names.arg = years,xlab='year',ylab='Number of columns',main='Actual Columns')
-barplot(mis_ages,names.arg = years,xlab='year',ylab='Proportion of Missing Data',main='Ages')
-barplot(mis_hts,names.arg = years,xlab='year',ylab='Proportion of Missing Data',main='Heights')
+barplot(fullcols,names.arg = years,xlab='Year',ylab='Number of Variables',main='Available Data per Year')
+barplot(mis_ages,names.arg = years,xlab='Year',ylab='Proportion of Missing Data',main=' Missing Age Data per Year')
+barplot(mis_hts,names.arg = years,xlab='Year',ylab='Proportion of Missing Data',main=' Missing Height Data per Year')
 ```
 
 Now we have justification for sticking mostly to modern data, we can start to think about which players are relevant in our model. We suspect that not all players need to necessarily be included. For instance, a rogue player that has only played one game will input very little into our model's predictive power. We can quantify this suspicion by plotting each players total number of games played from 2020-2022.
@@ -133,8 +133,8 @@ for (i in 1:N){
 
 #Plotting results
 par(mfrow=c(1,2))
-hist(num_games,breaks=200,xlab='Games Played',main='Number of Games played per player (2020-2022)')
-hist(num_games,breaks=200,xlim=c(1,10),xlab='Games Played',main='Number of Games played per player (2020-2022)',cex=.2)
+hist(num_games,breaks=200,xlab='Games Played',main='Number of Games played per Player (2020-2022)')
+hist(num_games,breaks=200,xlim=c(1,10),xlab='Games Played',main='Number of Games played per Player (2020-2022) [Zoomed]')
 ```
 
 To then create a list of 'significant' players, we only include players from 2020-2022 who have played more than 5 games over those 3 years, and have then also played again in 2023 (So we can predict their performance in the test set).

@@ -9,75 +9,153 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
+# Creating super function
+
+TennisTidyr<-function(startyear,endyear,testset,numgames,filename,keepNAheight,keepNAage){
+  # Adding errors for if years will not match the dataset
+  if (!(startyear > 1967 & startyear < 2023)){
+    return("Error: Start year must be between 1968 and 2022")
+  }
+  if (!(endyear > 1967 & endyear < 2023)){
+    return("Error: End year must be between 1968 and 2022")
+  }
+  if (!(testset > 1967 & testset < 2024)){
+    return("Error: Test set must be between 1968 and 2023")
+  }
+  if (startyear > endyear){
+    return("Error: Start year must be less than end year")
+  }
+  if (endyear > testset){
+    return("Error: End year must be less than test set")
+  }
+  
+  #Creating blank dataset for training set, then appending each year
+  train<-tibble()
+  num_names<-c()
+  for (i in startyear:endyear){
+    data<-read_csv(paste(filename,as.character(i),".csv", sep=""),show_col_types = FALSE)
+    num_names<-append(num_names,c(as.matrix(data[,'winner_name']),as.matrix(data[,'loser_name'])))
+    train<-rbind(train,data)
+  }
+  #List of all unique names in that time period
+  names<-unique(num_names)
+  
+  #Number of games played per player
+  N<-length(names)
+  num_games<-rep(0,N)
+  for (i in 1:N){
+    num_games[i]<-length(which(num_names==names[i]))
+  }
+  
+  #Players who played in the test set (2023)
+  test_set<-read_csv(paste(filename,as.character(testset),".csv", sep=""),show_col_types = FALSE)
+  test_names<-c(as.matrix(test_set[,'winner_name']),as.matrix(test_set[,'loser_name']))
+
+  #List of 'significant' players
+  main_names<-names[num_games > numgames & names %in% test_names]
+  
+  #Only selecting columns we currently care about
+  train<-train[,c('surface','winner_name','winner_hand','winner_ht','winner_age','loser_name','loser_hand','loser_ht','loser_age')]
+  test<-test_set[,c('surface','winner_name','winner_hand','winner_ht','winner_age','loser_name','loser_hand','loser_ht','loser_age')]
+
+  #Only selecting players we care about
+  train<-train[train$winner_name %in% main_names,]
+  train<-train[train$loser_name %in% main_names,]
+  
+  test<-test[test$winner_name %in% main_names,]
+  test<-test[test$loser_name %in% main_names,]
+  
+  #Removing missing heights and ages if required
+  if (keepNAheight==FALSE){
+    train<-train[!is.na(train$winner_ht),]
+    train<-train[!is.na(train$loser_ht),]
+    test<-test[!is.na(test$winner_ht),]
+    test<-test[!is.na(test$loser_ht),]
+  }
+  
+  if (keepNAage==FALSE){
+    train<-train[!is.na(train$winner_age),]
+    train<-train[!is.na(train$loser_age),]
+    test<-test[!is.na(test$winner_age),]
+    test<-test[!is.na(test$loser_age),]
+  }
+  
+  
+  return(list(train,test,main_names))
+}
+
+
+```
+
+```{r warning=FALSE}
 #IMPORTING DATA
-data<-read.csv('wta_matches_1970.csv')
-```
+
+data<-TennisTidyr(2013,2021,2023,5,"data/wta_matches_",FALSE,FALSE)
+
+test<-data[[1]]
+names<-data[[3]]
+
+test$winner_name <- data.frame(name = test$winner_name, hand = test$winner_hand)
+test$loser_name <- data.frame(name = test$loser_name, hand = test$loser_hand)
+
+test$winner_name$name<-factor(test$winner_name$name,levels=names)
+test$loser_name$name<-factor(test$loser_name$name,levels=names)
 
 
-```{r}
-#COLLECTING LIST OF NAMES
 
-#Blank list of names
-names<-list()
 
-#Adding a name from the winners without repetition
-for (i in data$winner_name){
-  if (!(i %in% names)){
-    names<-append(names,i)
-  }
-}
+BTModel<-BTm(outcome = 1, winner_name,loser_name,data=test,formula=~name+hand,family = binomial(link = "logit"))
 
-#Adding a name from the losers without repetition
-for (i in data$loser_name){
-  if (!(i %in% names)){
-    names<-append(names,i)
-  }
-}
+BTModel
+
+BTabilities(BTModel)
 ```
 
 ```{r}
-#Function for number of wins i has over j
-num_wins<-function(player1,player2){
-  wins<-data[(data$winner_name==player1 & data$loser_name==player2),]
-  return(dim(wins)[1])
-}
-```
+unique(c(test$winner_name[which(is.na(test$winner_ht))],test$winner_name[which(is.na(test$winner_ht))]))
 
+noheights<-unique(test$winner_name[which(is.na(test$winner_ht))])
 
-```{r}
-#Creating initial weight parameter p
-names<-names[1:200]
+length(names[!(names %in% noheights)])
 
-p<-rep(1,length(names))
+unique(c(test$winner_name[which(is.na(test$winner_ht))],test$loser_name[which(is.na(test$loser_ht))]))
 
-num_iters<-1
+(test$winner_name[which(is.na(test$winner_ht))],test$loser_name[which(is.na(test$loser_ht))])
 
-for(x in num_iters){
-  #We update the parameter p_i for every i
-  for(i in 1:length(p)){
-    p[i]<-new_p(i)
-  }
-}
-
-p
+test$winner_name[which(is.na(test$winner_ht))]
 ```
 
 ```{r}
-new_p<-function(i){
-  n<-length(p)
-  top<-rep(0,n)
-  bottom<-rep(0,n)
-  for (j in 1:n){
-    top[j]<-num_wins(names[i],names[j])*p[j]/(p[i]+p[j])
-    bottom[j]<-num_wins(names[j],names[i])/(p[i]+p[j])
-  }
-  return(sum(top)/sum(bottom))
-}
+data(baseball)
+
+baseballModel1 <- BTm(cbind(home.wins, away.wins), home.team, away.team,
+data = baseball, id = "team")
+
+baseballModel1
 ```
 
 ```{r}
-for (i in 1:2 & i in 4:5){
-  print(i)
-}
+baseball$home.team <- data.frame(team = baseball$home.team, at.home = 1)
+baseball$away.team <- data.frame(team = baseball$away.team, at.home = 0)
+
+baseball
+```
+
+```{r}
+baseballModel2 <- update(baseballModel1, formula = ~ team + at.home)
+
+BT
+
+```
+
+```{r}
+test
+```
+
+```{r}
+test$winner_name <- data.frame(name = test$winner_name, hand = test$winner_hand)
+test$loser_name <- data.frame(name = test$loser_name, hand = test$loser_hand)
+
+BTModel2 <- update(BTModel, formula = ~ name + hand)
 ```
 

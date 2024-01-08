@@ -200,7 +200,7 @@ Finally, I will turn these data-cleaning functions into one function we will inc
 ```{r}
 # Creating super function
 
-TennisTidyr<-function(startyear,endyear,testset,numgames,filename){
+TennisTidyr<-function(startyear,endyear,testset,numgames,filename,keepNAheight,keepNAage){
   # Adding errors for if years will not match the dataset
   if (!(startyear > 1967 & startyear < 2023)){
     return("Error: Start year must be between 1968 and 2022")
@@ -254,6 +254,26 @@ TennisTidyr<-function(startyear,endyear,testset,numgames,filename){
   test<-test[test$winner_name %in% main_names,]
   test<-test[test$loser_name %in% main_names,]
   
+  #Removing missing heights and ages if required
+  if (keepNAheight==FALSE){
+    noheights<-unique(c(test$winner_name[which(is.na(test$winner_ht))],test$loser_name[which(is.na(test$loser_ht))],train$winner_name[which(is.na(train$winner_ht))],train$loser_name[which(is.na(train$loser_ht))]))
+    print(length(noheights))
+    main_names<-main_names[!(main_names %in% noheights)]
+    train<-train[!is.na(train$winner_ht),]
+    train<-train[!is.na(train$loser_ht),]
+    test<-test[!is.na(test$winner_ht),]
+    test<-test[!is.na(test$loser_ht),]
+  }
+  
+  if (keepNAage==FALSE){
+    noages<-unique(c(test$winner_name[which(is.na(test$winner_age))],test$loser_name[which(is.na(test$loser_age))],train$winner_name[which(is.na(train$winner_age))],train$loser_name[which(is.na(train$loser_age))]))
+    main_names<-main_names[!(main_names %in% noages)]
+    train<-train[!is.na(train$winner_age),]
+    train<-train[!is.na(train$loser_age),]
+    test<-test[!is.na(test$winner_age),]
+    test<-test[!is.na(test$loser_age),]
+  }
+  
   
   return(list(train,test,main_names))
 }
@@ -262,7 +282,7 @@ TennisTidyr<-function(startyear,endyear,testset,numgames,filename){
 ```
 
 ```{r}
-testdata <- TennisTidyr(2020,2022,2023,10,"tennis_wta/wta_matches_")
+testdata <- TennisTidyr(2013,2021,2023,5,"tennis_wta/wta_matches_")
 
 testdata[2]
 ```
@@ -302,5 +322,17 @@ for (i in 1:M){
 lol<-countsToBinomial(as.table(winmat))
 
 lol
+```
+
+```{r}
+df1<-testdata[[1]]
+names<-testdata[[3]]
+df1$winner_name<-factor(df1$winner_name,levels=players)
+df1$loser_name<-factor(df1$loser_name,levels=players)
+model = BTm(outcome=1, as.factor(winner_name), as.factor(loser_name), data=df1)
+```
+
+```{r}
+model
 ```
 

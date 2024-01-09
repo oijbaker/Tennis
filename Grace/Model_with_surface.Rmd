@@ -98,13 +98,28 @@ Surface <- surface[indices]
 Surface <- as.factor(Surface) # converting characters into factors
 
 
-# Combine everything into a new dataframe that will be used for modelling
-data_for_model <- data.frame(PlayerID, matches, Hand, Height, Surface)
-```
-
-Fitting the Bradley Terry model with the hand, height and surface variables:
+For player-specificity, we need to have an 'id' variable. The code below adds this column to the dataframe that we will use for the model.
 
 ```{r}
-model_3vars <- BTm(1, Winner, Loser, ~ W_Hand + L_Hand + W_Height + L_Height + Surface[..] + (1|..), data = data_for_model)
+# Extracting players' ID
+W_ID <- winner_id[indices] # only need W_ID since all the players we're considering have been winners
+
+# Create an index for each player
+unique_players <- unique(W_ID)
+id <- match(W_ID, unique_players) # tells you which place in unique_players the elements in W_ID occupy.
+```
+
+So each time player i wins a match, the associated 'id' element will be the same. It is unique for each winner.
+
+```{r}
+# Combine everything into a new dataframe that will be used for modelling
+data_for_model <- data.frame(id, matches, Hand, Height, Surface)
+```
+
+Fitting the Bradley Terry model with the hand, height and surface variables (all of them are player-specific):
+
+```{r}
+model_3vars <- BTm(1, Winner, Loser, ~ W_Hand[..] + L_Hand[..] + W_Height[..] + L_Height[..] + Surface[..], data = data_for_model)
+model_3vars
 summary(model_3vars)
 ```

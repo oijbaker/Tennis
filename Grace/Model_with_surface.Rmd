@@ -1,0 +1,110 @@
+---
+title: "Model with surface"
+author: "Grace Yan"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Importing .csv files
+
+First, we load the .csv files for all the WTA matches from 1968-present.
+
+```{r, message=FALSE}
+library(readr)
+library(plyr)
+
+myfiles <- list.files(path = "/home/cr23868/Documents/Tennis/R_code/tennis_wta-master", pattern = ".csv", full.names=TRUE)
+dat_csv <- ldply(myfiles, read_csv)
+View(dat_csv)
+```
+
+### Data wrangling
+
+We extract the columns that we need. (We'll probably have to use EDA to justify the importance/unimportance of each variable.) These consist of: winner_hand, winner_ht, w_ace, w_df, w_svpt, w_1stIn, w_1stWon, w_2ndWon, w_SvGms, w_bpSaved, w_bpFaced, and their loser counterparts, and also surface.
+
+Here, I will only include the winner_hand and winner_ht variables and their loser counterparts.
+
+First, we extract players who have played at least 20 matches...
+
+```{r, message=FALSE}
+library(tidyr)
+library(dplyr)
+
+##### Extracting necessary columns and removing NAs
+data <- data.frame(dat_csv[,c("winner_id", "winner_name", "winner_hand", "winner_ht", "w_ace", "w_df", "w_svpt", "w_1stIn", "w_1stWon",
+                              "w_2ndWon", "w_SvGms", "w_bpSaved", "w_bpFaced", "loser_id", "loser_name", "loser_hand", "loser_ht",
+                              "l_ace", "l_df", "l_svpt", "l_1stIn", "l_1stWon", "l_2ndWon", "l_SvGms", "l_bpSaved",
+                              "l_bpFaced", "surface")])
+data <- na.omit(data)
+attach(data)
+
+##### Extracting players who have won 20+ matches
+all_players <- data.frame(Player=c(winner_name,loser_name))
+count <- count(all_players, Player, name="Total_matches") # counts number of rows each unique name has in all_players, i.e. each unique player's number of total wins & losses
+players <- filter(count, Total_matches >= 20) # extracts players who have played 20+ matches
+```
+
+Now we will extract the matches that we will use for our model based on two conditions: (i) only include matches where both the winner and loser's hand are known (i.e. 'winner_hand' and 'loser_hand' are not "U") and (ii) only include matches where both players have played 20+ matches in the dataset.
+
+```{r}
+# Indices on which players' hand is known
+indices_w_handknown <- (winner_hand != "U") # TRUE for players whose hands are known, FALSE otherwise
+indices_l_handknown <- (loser_hand != "U")
+# Indices on which players have played 20+ matches
+indices_w_handplayers <- winner_name %in% players$Player
+indices_l_handplayers <- loser_name %in% players$Player
+
+# Indices for rows in 'data' that have TRUE for all the indices above (i.e. matches where players' hands are known and they've played 20+ matches)
+indices <- indices_w_handknown == TRUE & indices_l_handknown == TRUE & indices_w_handplayers == TRUE & indices_l_handplayers == TRUE
+
+print( length(which(indices == TRUE)) ) # number of matches we will be using for the model
+```
+
+Using these indices, we will extract the rows we need from each variable.
+
+```{r}
+##### Extracting matches
+matches <- data.frame(Winner=winner_name, Loser=loser_name)
+matches <- matches[indices,]
+# Convert characters into factors
+matches$Winner <- factor(matches$Winner, levels=players$Player)
+matches$Loser <- factor(matches$Loser, levels=players$Player)
+
+are_levels_identical <- identical(levels(matches$Winner), levels(matches$Loser))
+are_levels_identical
+
+##### Extracting variables
+
+# Extracting players' hand
+W_Hand <- winner_hand[indices]
+L_Hand <- loser_hand[indices]
+# Convert characters into factors
+W_Hand <- factor(W_Hand, levels = c('L', 'R'))
+L_Hand <- factor(L_Hand, levels = c('L', 'R'))
+# Make 'Hand' variable
+Hand <- data.frame(W_Hand, L_Hand)
+
+# Extracting players' heights
+W_Height <- winner_ht[indices]
+L_Height <- loser_ht[indices]
+# Make 'Height' variable
+Height <- data.frame(W_Height, L_Height)
+
+# Extracting surface
+Surface <- surface[indices]
+Surface <- as.factor(Surface) # converting characters into factors
+
+
+# Combine everything into a new dataframe that will be used for modelling
+data_for_model <- data.frame(PlayerID, matches, Hand, Height, Surface)
+```
+
+Fitting the Bradley Terry model with the hand, height and surface variables:
+
+```{r}
+model_3vars <- BTm(1, Winner, Loser, ~ W_Hand + L_Hand + W_Height + L_Height + Surface[..] + (1|..), data = data_for_model)
+summary(model_3vars)
+```

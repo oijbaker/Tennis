@@ -96,7 +96,7 @@ Height <- data.frame(W_Height, L_Height)
 # Extracting surface
 Surface <- surface[indices]
 Surface <- as.factor(Surface) # converting characters into factors
-
+```
 
 For player-specificity, we need to have an 'id' variable. The code below adds this column to the dataframe that we will use for the model.
 

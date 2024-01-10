@@ -1,0 +1,115 @@
+---
+title: "Time_Series"
+output: html_document
+date: "2024-01-10"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning=FALSE}
+# PICKING 10 MOST IMPORTANT PLAYERS??
+
+#Loading data
+Big_Data<-TennisTidyr(2005,2020,2021,20,"wta_matches_",FALSE,FALSE)
+
+Big_Train<-Big_Data[[1]]
+names<-Big_Data[[3]]
+
+
+#Training model
+Big_Train$winner_name<-factor(Big_Train$winner_name,levels=names)
+Big_Train$loser_name<-factor(Big_Train$loser_name,levels=names)
+
+BTModel<-BTm(outcome = 1, winner_name,loser_name,data=Big_Train,family = binomial(link = "logit"))
+
+#Finding top players
+Big_Rankings<-data_frame(Players=sort(names),Ranks=BTabilities(model_3vars)[1:length(names)])
+Big_Rankings<-Big_Rankings[order(Big_Rankings$Ranks,decreasing=TRUE),]
+top_players<-Big_Rankings$Players[1:10]
+
+#Matrix for rankings
+Rankings_Mat<-matrix(NA,nrow=10,ncol=10)
+```
+
+```{r}
+#Function for finding rankings
+Ranks<-function(year){
+  #Loading data
+  Data<-TennisTidyr(year-5,year,2021,1,"wta_matches_",FALSE,FALSE)
+
+Train<-Data[[1]]
+names<-Data[[3]]
+
+
+#Training model
+Train$winner_name<-factor(Train$winner_name,levels=names)
+Train$loser_name<-factor(Train$loser_name,levels=names)
+
+BTModel<-BTm(outcome = 1, winner_name,loser_name,data=Train,family = binomial(link = "logit"))
+
+#Finding top players
+Rankings<-data_frame(Players=sort(names),Ranks=BTabilities(BTModel)[1:length(names)])
+Rankings<-Rankings[order(Rankings$Ranks,decreasing=TRUE),]
+#print(Rankings)
+
+ranks<-rep(0,10)
+for (i in 1:10){
+  if(top_players[i] %in% Rankings$Players){
+  ranks[i]<-which(Rankings$Players == top_players[i])
+  }
+  else{
+    ranks[i]<-NA
+  }
+}
+return(ranks)
+}
+
+```
+
+```{r warning=FALSE}
+for (i in 2010:2019){
+  Rankings_Mat[,i-2009]<-Ranks(i)
+}
+```
+
+```{r}
+library(ggplot2)
+
+Rankings_Data<-data_frame(Year=seq(2010,2019),as.data.frame(t(Rankings_Mat)))
+Rankings_Data$Year<-as.integer(Rankings_Data$Year)
+colnames(Rankings_Data)<-c('Year',top_players)
+
+
+ggplot(data=Rankings_Data,aes(x=Year,y=V3))+
+  geom_point(col='red') +
+  geom_line(col='red') +
+  geom_point(aes(x=Year,y=V4),col='blue') +
+  geom_line(aes(x=Year,y=V4),col='blue') +
+   scale_y_reverse() +
+  legend(fill=top_players[1:2])
+```
+
+```{r}
+longDat <- Rankings_Data %>% pivot_longer(cols = everything(), names_to = "ID", values_to = "dem") %>% dplyr::arrange(ID)
+
+longDat
+```
+
+```{r}
+Rankings_Data<-as.data.frame(t(Rankings_Mat),row.names = seq(2010,2019))
+colnames(Rankings_Data)<-top_players
+longDat <- Rankings_Data %>% pivot_longer(cols = everything(), names_to = "Players", values_to = "Ranks") %>% dplyr::arrange(Players)
+longDat %>% group_by(Players) %>%
+            slice(1:10) %>%
+            mutate(Year = as.factor(row_number()+2009)) %>%
+ggplot(aes(x = Year, y = Ranks, col = Players)) +
+            geom_point() +
+            geom_line() +
+  scale_y_reverse() +
+   theme(axis.text.x = element_text(angle = 50, vjust = 1, hjust = 1)) +
+  labs(x='Year',y='Ranking',title='Rankings from 2010-2019')
+```
+
+

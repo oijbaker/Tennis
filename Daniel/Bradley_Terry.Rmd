@@ -159,3 +159,10 @@ test$loser_name <- data.frame(name = test$loser_name, hand = test$loser_hand)
 BTModel2 <- update(BTModel, formula = ~ name + hand)
 ```
 
+```{r}
+ranks<-BTabilities(model_3vars)
+proper_ranks<-data_frame(Player=sort(players$Player),Rank=ranks[1:126])
+proper_ranks[order(proper_ranks$Rank,decreasing=TRUE),]
+```
+
+

@@ -244,8 +244,8 @@ TennisTidyr<-function(startyear,endyear,testset,numgames,filename,keepNAheight,k
   main_names<-names[num_games > numgames & names %in% test_names]
   
   #Only selecting columns we currently care about
-  train<-train[,c('surface','winner_name','winner_hand','winner_ht','winner_age','loser_name','loser_hand','loser_ht','loser_age')]
-  test<-test_set[,c('surface','winner_name','winner_hand','winner_ht','winner_age','loser_name','loser_hand','loser_ht','loser_age')]
+  train<-train[,c('winner_id','surface','winner_name','winner_hand','winner_ht','winner_age','loser_name','loser_hand','loser_ht','loser_age')]
+  test<-test_set[,c('winner_id','surface','winner_name','winner_hand','winner_ht','winner_age','loser_name','loser_hand','loser_ht','loser_age')]
 
   #Only selecting players we care about
   train<-train[train$winner_name %in% main_names,]
@@ -257,7 +257,7 @@ TennisTidyr<-function(startyear,endyear,testset,numgames,filename,keepNAheight,k
   #Removing missing heights and ages if required
   if (keepNAheight==FALSE){
     noheights<-unique(c(test$winner_name[which(is.na(test$winner_ht))],test$loser_name[which(is.na(test$loser_ht))],train$winner_name[which(is.na(train$winner_ht))],train$loser_name[which(is.na(train$loser_ht))]))
-    print(length(noheights))
+    #print(length(noheights))
     main_names<-main_names[!(main_names %in% noheights)]
     train<-train[!is.na(train$winner_ht),]
     train<-train[!is.na(train$loser_ht),]

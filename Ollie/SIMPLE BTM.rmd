@@ -1,0 +1,189 @@
+#### UNBELIEVABLY SIMPLE VERSION
+
+This is how to use the basic model without all the countsToBinomial() stuff. I'll first do the simple initial model, then do one with an extension.
+
+Let's get the data in. I'm going to use WTA data from 2013 to 2022 as training data, and 2023 as testing data.
+
+```{r}
+library(BradleyTerry2)
+library(tidyr)
+library(dplyr)
+
+# Define the file path
+file_paths <- c("../data/wta_matches_2021.csv", "../data/wta_matches_2020.csv",
+                "../data/wta_matches_2019.csv", "../data/wta_matches_2018.csv",
+                "../data/wta_matches_2017.csv", "../data/wta_matches_2016.csv",
+                "../data/wta_matches_2015.csv", "../data/wta_matches_2014.csv",
+                "../data/wta_matches_2013.csv")
+
+df <- read.csv(file_paths[6])
+
+for (i in 2:(length(file_paths)-1)) {
+  df1 <- rbind(df1, read.csv(file_paths[i]))
+}
+
+head(df1)
+```
+
+Now we need to filter out any players that haven't played more than 5 matches, and any players that have never won or never lost. In practice there are no players that have never lost. This is to ensure that when we fit the model, we don't get any errors with 'must be factors of the same level' as has been plaguing me the whole time...
+
+```{r}
+# Remove players in s that appear in fewer than 5 matches
+players <- intersect(df1$winner_name, df1$loser_name)
+
+player_freqs <- setNames(rep(0, length(players)), players)
+for (j in 1:length(players)) {
+  for (k in 1:length(df1$winner_name)) {
+    if (df1$winner_name[k] == players[j]) {
+      player_freqs[j] <- player_freqs[j] + 1
+    } else if (df1$loser_name[k] == players[j]) {
+      player_freqs[j] <- player_freqs[j] + 1
+    }
+  }
+}
+
+# filter the players to only have players with more than 5 matches
+players <- names(player_freqs[player_freqs >= 10])
+joint_players <- intersect(df1$winner_name, df1$loser_name)
+players <- intersect(players, joint_players)
+df1 <- df1[df1$winner_name %in% players & df1$loser_name %in% players, ]
+head(df1)
+```
+
+Now we can just put this into the BT model. Using the 'outcome=1' argument means that in every entry that is in in the data, the first player won. Notice we need to use 'as.factor()'.
+```{r}
+nrow(df1)
+```
+```{r}
+setdiff(df1$loser_name, df1$winner_name)
+model = BTm(outcome=1, as.factor(winner_name), as.factor(loser_name), data=df1)
+```
+
+Let's predict the 2023 season to see if its working well. The literature benchmarks around 60% accuracy for these models.
+
+```{r}
+matches_2023 <- read.csv("../data/wta_matches_2023.csv")
+
+matches_2023 <- matches_2023[matches_2023$winner_name %in% players & matches_2023$loser_name %in% players, ]
+head(matches_2023)
+```
+
+```{r}
+predict <- function(player1, player2) {
+  lambda1 <- df_coeff[player1,1]
+  lambda2 <- df_coeff[player2,1]
+
+  pred <- exp(lambda1) / (exp(lambda1) + exp(lambda2))
+  return(c(pred>0.5, pred))
+}
+```
+
+```{r}
+df_coeff <- as.data.frame(summary(model)$coefficients)
+rownames(df_coeff) <- lapply(rownames(df_coeff),
+                             function(x) substr(x, 3, nchar(x)))
+
+# make predictions
+draws <- matches_2023[,c("winner_name","loser_name")]
+draws <- draws[draws$winner_name %in% players & draws$loser_name %in% players, ]
+
+for (i in 1:nrow(draws)) {
+  player1 <- draws$winner_name[i]
+  player2 <- draws$loser_name[i]
+  pred <- predict(player1, player2)
+  draws$pred[i] <- pred[2]
+}
+```
+
+```{r}
+# find the accuracy
+draws$correct <- draws$pred > 0.5
+sum(draws$correct) / nrow(draws)
+```
+
+This seems about right!
+
+Now we can also include some explanatory variables using the 'formula' argument. Suppose we now want to predict the model by players height.
+
+```{r}
+height_model <- BTm(outcome=1, as.factor(winner_name), as.factor(loser_name), 
+                    formula=~(winner_ht[..]+loser_ht[..]), data=df1)
+```
+
+```{r}
+summary(height_model)
+```
+
+By the last row, we can see that winner_ht and loser_ht do not have much impact on the model. The names included are the names of players that have missing values for height. Now if we try to predict the season:
+
+```{r}
+# need to change the coefficients
+df_coeff <- as.data.frame(BTabilities(height_model))
+
+# make predictions
+draws <- na.omit(matches_2023[,c("winner_name","loser_name","winner_ht","loser_ht")])
+draws <- draws[draws$winner_name %in% players & draws$loser_name %in% players, ]
+
+for (i in 1:nrow(draws)) {
+  player1 <- draws$winner_name[i]
+  player2 <- draws$loser_name[i]
+  pred <- predict(player1, player2)
+  draws$pred[i] <- pred[2]
+}
+
+# find the accuracy
+draws$correct <- draws$pred > 0.5
+sum(draws$correct) / nrow(draws)
+```
+
+So this model is not much better than one that randomly selects a winner or loser (very much as expected!).
+
+What if we try to include all the covariates that we can?
+
+```{r}
+all_model <- BTm(outcome=1, as.factor(winner_name), as.factor(loser_name),
+                 formula = ~ winner_ht[..] + loser_ht[..] + winner_age[..] + loser_age[..] +
+                   w_ace[..] + l_ace[..] + w_df[..] + l_df[..] + w_svpt[..] + l_svpt[..] +
+                   w_1stIn[..] + l_1stIn[..] + w_1stWon[..] + l_1stWon[..] +
+                   w_2ndWon[..] + l_2ndWon[..] + w_SvGms[..] + l_SvGms[..] +
+                   w_bpSaved[..] + l_bpSaved[..] + w_bpFaced[..] + l_bpFaced[..] +
+                   winner_rank[..] + loser_rank[..], data=df1)
+```
+
+```{r}
+summary(all_model)
+```
+
+```{r}
+# need to change the coefficients
+df_coeff <- as.data.frame(BTabilities(all_model))
+
+# make predictions
+draws <- na.omit(matches_2023)
+draws <- draws[draws$winner_name %in% players & draws$loser_name %in% players, ]
+
+for (i in 1:nrow(draws)) {
+  player1 <- draws$winner_name[i]
+  player2 <- draws$loser_name[i]
+  pred <- predict(player1, player2)
+  draws$pred[i] <- pred[2]
+}
+
+# find the accuracy
+draws$correct <- draws$pred > 0.5
+sum(draws$correct) / nrow(draws)
+```
+
+The model is 62% accurate. This is a **better** accuracy than the initial model.
+
+Tentative attempt at surface:
+
+```{r}
+surface_model <- BTm(outcome=1, as.factor(winner_name), as.factor(loser_name),
+                 formula = ~ winner_ht[..] + loser_ht[..] + winner_age[..] + loser_age[..] +
+                   w_ace[..] + l_ace[..] + w_df[..] + l_df[..] + w_svpt[..] + l_svpt[..] +
+                   w_1stIn[..] + l_1stIn[..] + w_1stWon[..] + l_1stWon[..] +
+                   w_2ndWon[..] + l_2ndWon[..] + w_SvGms[..] + l_SvGms[..] +
+                   w_bpSaved[..] + l_bpSaved[..] + w_bpFaced[..] + l_bpFaced[..] +
+                   winner_rank[..] + loser_rank[..], data=df1)
+```

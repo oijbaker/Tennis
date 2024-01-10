@@ -36,19 +36,22 @@ countsToBinomial<-function(xtab){
         player1 <- factor(players[comb[,1]], levels = players)[res]
         player2 <- factor(players[comb[,2]], levels = players)[res]
         return(data.frame(player1, player2, win1 = won[res], win2 = lost[res]))
-    }
+}
+```
 
+```{r}
 # Define the file path
-file_paths <- c("../data/wta_matches_2021.csv", "../data/wta_matches_2020.csv",
+file_paths <- c("../data/wta_matches_2022.csv", "../data/wta_matches_2021.csv", 
+                "../data/wta_matches_2020.csv",
                 "../data/wta_matches_2019.csv", "../data/wta_matches_2018.csv",
                 "../data/wta_matches_2017.csv", "../data/wta_matches_2016.csv",
                 "../data/wta_matches_2015.csv", "../data/wta_matches_2014.csv",
                 "../data/wta_matches_2013.csv")
 
-df <- read.csv(file_paths[1])
+df1 <- read.csv(file_paths[1])
 
 for (i in 2:(length(file_paths)-1)) {
-  df1 <- rbind(df, read.csv(file_paths[i]))
+  df1 <- rbind(df1, read.csv(file_paths[i]))
 }
 
 df1 <- df1[,c("winner_name","loser_name","tourney_date")]
@@ -69,8 +72,11 @@ for (j in 1:length(players)) {
     }
   }
 }
+```
+
+```{r}
 # filter the players to only have players with more than 5 matches
-players <- names(player_freqs[player_freqs >= 5])
+players <- names(player_freqs[player_freqs >= 20])
 df1 <- df1[df1$winner_name %in% players & df1$loser_name %in% players, ]
 df1
 ```
@@ -94,14 +100,14 @@ recency_weighting = 0.8
 
 for (i in 1:nrow(df1)) {
   row <- df1[i,]
-  mat[row$winner_name,row$loser_name] <- mat[row$winner_name,row$loser_name]+ time_weighting(row$time, recency_weighting)
+  mat[row$winner_name,row$loser_name] <- mat[row$winner_name,row$loser_name] + 1
 }
 ```
 
 Now countsToBinomial()
 
 ```{r}
-tennis_data <- countsToBinomial(mat)
+tennis_data <- countsToBinomial(mat) 
 head(tennis_data)
 ```
 
@@ -115,13 +121,104 @@ matches_2023 <- matches_2023[matches_2023$winner_name %in% players & matches_202
 matches_2023 <- matches_2023[, c("winner_name", "loser_name")]
 ```
 
-Make the model
+Make the model without time weighting for reference.
 
 ```{r}
 library(BradleyTerry2)
-btm <- BTm(cbind(win1, win2), player1, player2, data = tennis_data)
+players <- intersect(df1$winner_name, df1$loser_name)
+btm <- BTm(outcome=1, factor(winner_name, levels=players), factor(loser_name, levels=players), 
+                    formula=~player, id='player', data=df1)
 ```
 
 ```{r}
+BTabilities(btm)
+```
 
+```{r}
+predict <- function(player1, player2) {
+  lambda1 <- df_coeff[player1,1]
+  lambda2 <- df_coeff[player2,1]
+
+  pred <- exp(lambda1) / (exp(lambda1) + exp(lambda2))
+  return(c(pred>0.5, pred))
+}
+```
+
+```{r}
+# open the 2023 file and make predictions
+matches_2023 <- read.csv("../data/wta_matches_2023.csv")
+matches_2023
+# make training data
+matches_2023 <- matches_2023[matches_2023$winner_name %in% players & matches_2023$loser_name %in% players, ]
+matches_2023 <- matches_2023[, c("winner_name", "loser_name")]
+
+```
+
+```{r}
+df_coeff <- as.data.frame(BTabilities(btm))
+
+
+# make predictions
+draws <- matches_2023[,c("winner_name","loser_name")]
+draws <- draws[draws$winner_name %in% players & draws$loser_name %in% players, ]
+
+for (i in 1:nrow(draws)) {
+  player1 <- draws$winner_name[i]
+  player2 <- draws$loser_name[i]
+  pred <- predict(player1, player2)
+  draws$pred[i] <- pred[2]
+}
+```
+
+```{r}
+library(rlist)
+# find the accuracy
+draws$correct <- draws$pred > 0.5
+num <-nrow(filter(draws, draws$correct))
+num / nrow(draws)
+```
+
+Now make the model with time weighting.
+
+```{r}
+players <- intersect(df1$winner_name, df1$loser_name)
+btm <- BTm(outcome=1, factor(winner_name, levels=players), factor(loser_name, levels=players), 
+                    formula=~player*time, id='player', data=df1)
+```
+
+```{r}
+# open the 2023 file and make predictions
+matches_2023 <- read.csv("../data/wta_matches_2023.csv")
+# make training data
+matches_2023 <- matches_2023[matches_2023$winner_name %in% players & matches_2023$loser_name %in% players, ]
+matches_2023 <- matches_2023[, c("winner_name", "loser_name")]
+
+```
+
+```{r}
+df_coeff <- as.data.frame(BTabilities(btm))
+
+
+# make predictions
+draws <- matches_2023[,c("winner_name","loser_name")]
+draws <- draws[draws$winner_name %in% players & draws$loser_name %in% players, ]
+
+for (i in 1:nrow(draws)) {
+  player1 <- draws$winner_name[i]
+  player2 <- draws$loser_name[i]
+  pred <- predict(player1, player2)
+  draws$pred[i] <- pred[2]
+}
+```
+
+```{r}
+library(rlist)
+# find the accuracy
+draws$correct <- draws$pred > 0.5
+num <-nrow(filter(draws, draws$correct))
+num / nrow(draws)
+```
+
+```{r}
+summary(btm)
 ```

@@ -1,0 +1,171 @@
+---
+title: "Lab Notebook"
+output: html_document
+date: "2024-01-11"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Code for Section 2: Data
+
+Here we will be performing some basic analysis on the data to get an idea of any major problems with the dataset before we build the model. I.e. if we find any irrelevant data that we can remove this will greatly simplify things later down the line.
+
+Firstly we create our set of years and define the test set to be the year 2023
+
+```{r}
+#List of years from 1968 to 2023
+years<-seq(1968,2023)
+
+#Test set year
+test_year<-2023
+
+#Loading test set
+library(readr)
+test_set<-read_csv(paste("tennis_wta/wta_matches_",as.character(test_year),".csv", sep=""),show_col_types = FALSE)
+```
+
+Next we want to see how much data is actually available. From briefly skimming through the datasets we saw that not all years contain the same amount of variables. Therefore we quantify the amount of variables by measuring how many columns in the data frame actually contain data. Then we will also potentially use age and height as covariates in our model, although again by quickly looking at the .csv files we can see a fair amount of missing data. Hence we also measure this and see if it changes by year.
+
+```{r}
+#Checking if a column is empty
+containsdata<-function(column){
+  if (all(is.na(column))){
+    return(FALSE)
+  }
+  else{
+    return(TRUE)
+  }
+}
+
+#How many columns contain data
+fullcolumns<-function(data){
+  num<-0
+  for (i in 1:dim(data)[2]){
+    if (containsdata(data[,i])){
+      num<-num+1
+    }
+  }
+  return(num)
+}
+```
+
+```{r}
+#Checking for missing data in age
+ismissing_age<-function(data){
+  num_missing<-0
+  for (column in c('winner_age','loser_age')){
+    for (j in 1:dim(data[,column])[1]){
+      if (all(is.na(data[j,column]))){
+        num_missing<-num_missing+1
+      }
+    }
+  }
+  return(num_missing)
+}
+
+#Checking for missing data in height
+ismissing_height<-function(data){
+  num_missing<-0
+  for (column in c('winner_ht','loser_ht')){
+    for (j in 1:dim(data[,column])[1]){
+      if (all(is.na(data[j,column]))){
+        num_missing<-num_missing+1
+      }
+    }
+  }
+  return(num_missing)
+}
+```
+
+```{r include=FALSE}
+#Finding amount of columns, missing height and age data for each year
+
+M<-length(years)
+fullcols<-rep(0,M)
+mis_ages<-rep(0,M)
+mis_hts<-rep(0,M)
+for (i in 1:M){
+  data<-read_csv(paste("tennis_wta/wta_matches_",as.character(years[i]),".csv", sep=""),show_col_types = FALSE)
+  fullcols[i]<-fullcolumns(data)
+  mis_ages[i]<-ismissing_age(data)/(2*dim(data)[1])
+  mis_hts[i]<-ismissing_height(data)/(2*dim(data)[1])
+}
+```
+
+By plotting the amount of variables (non-zero columns) and percentage of missing data across time, we can see that the older data is much worse than the current, which is to be expected. For instance, the data around 1970 only has about half the variables recorded as in 2023, and over half the heights of players are not recorded. We can also see that for modern data, the proportion of missing age data is negligible. As expected also the amount of height data collected increases with time, although strangely falters past the 2010s. However we will see later why this might be.
+
+```{r}
+#Plotting results 
+library(ggplot2)
+library(ggthemes)
+library(cowplot)
+
+#Creating data frame of results
+Missing_Data<-data_frame(Year=years,Mis_Age =mis_ages,Mis_hts=mis_hts,Fullcols=fullcols)
+
+#Plotting
+plot1<-ggplot(Missing_Data,aes(x=Year,y=Fullcols))+
+  geom_bar(stat="identity",fill='darkblue') +
+  theme_solarized() +
+  labs(x='Year',y='Number of Variables',title='Available Data per Year')
+plot2<-ggplot(Missing_Data,aes(x=Year,y=Mis_Age))+
+  geom_bar(stat="identity",fill='darkred') +
+  theme_solarized() +
+  labs(x='Year',y='Proportion of Missing Data',title=' Missing Age Data per Year')
+plot3<-ggplot(Missing_Data,aes(x=Year,y=Mis_hts))+
+  geom_bar(stat="identity",fill='darkgreen') +
+  theme_solarized() +
+  labs(x='Year',y='Proportion of Missing Data',title=' Missing Height Data per Year')
+
+plot_grid(plot1,plot2,plot3,nrow=1)
+```
+
+Now we have justification for sticking mostly to modern data, we can start to think about which players are relevant in our model. We suspect that not all players need to necessarily be included. For instance, a rogue player that has only played one game will input very little into our model's predictive power. We can quantify this suspicion by plotting each players total number of games played from 2020-2022.
+
+```{r include=FALSE}
+library(dplyr)
+library(tidyr)
+
+#Creating array of all distinct competitors from 2020-2022
+num_names<-c()
+for (i in 53:(M-1)){
+  data<-read_csv(paste("tennis_wta/wta_matches_",as.character(years[i]),".csv", sep=""),show_col_types = FALSE)
+  num_names<-append(num_names,c(as.matrix(data[,'winner_name']),as.matrix(data[,'loser_name'])))
+}
+names<-unique(num_names)
+```
+
+By plotting a histogram of frequencies (Left), it is immediately obvious that our worries were correct, and a large proportion of players have played an insignificant amount of games over three years. In fact by zooming in on this histogram (right), a lot of players have indeed only played one game and then never played again.
+
+```{r warning=FALSE}
+#Finding how many games each player has played from 2020-2022
+N<-length(names)
+num_games<-rep(0,N)
+for (i in 1:N){
+  num_games[i]<-length(which(num_names==names[i]))
+}
+
+#Creating data frame of results
+Num_Game_Data<-data_frame(Num_Games=num_games)
+
+#Plotting
+plot4<-ggplot(Num_Game_Data,aes(x=Num_Games))+
+  theme_solarized() +
+  geom_histogram(binwidth = 1,fill='darkblue') +
+  labs(x='Games Played',y='Frequency',title='Number of Games played per Player (2020-2022)')
+
+plot5<-ggplot(Num_Game_Data,aes(x=Num_Games))+
+  theme_solarized() +
+  geom_histogram(binwidth = 1,fill='darkblue',col='white') +
+  xlim(c(0,10)) +
+  labs(x='Games Played',y='Frequency',title='Number of Games played per Player (2020-2022) [Zoomed]')
+
+plot_grid(plot4,plot5,nrow=1)
+```
+
+# Code for Section 3: Model and Evaluation Techniques
+
+# Code for Section 4: Results
+

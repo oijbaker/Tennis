@@ -17,11 +17,13 @@ library(BradleyTerry2)
 # PICKING 10 MOST IMPORTANT PLAYERS??
 
 #Loading data
-Big_Data<-TennisTidyr(2005,2020,2021,20,"wta_matches_",FALSE,FALSE)
+Big_Data<-TennisTidyr(2005,2020,2021,20,"tennis_wta/wta_matches_",FALSE,FALSE)
 
 Big_Train<-Big_Data[[1]]
 names<-Big_Data[[3]]
 
+#Number of top players
+M<-5
 
 #Training model
 Big_Train$winner_name<-factor(Big_Train$winner_name,levels=names)
@@ -32,17 +34,15 @@ BTModel<-BTm(outcome = 1, winner_name,loser_name,data=Big_Train,family = binomia
 #Finding top players
 Big_Rankings<-data_frame(Players=sort(names),Ranks=BTabilities(BTModel)[1:length(names)])
 Big_Rankings<-Big_Rankings[order(Big_Rankings$Ranks,decreasing=TRUE),]
-top_players<-Big_Rankings$Players[1:10]
+top_players<-Big_Rankings$Players[1:M]
 
-#Matrix for rankings
-Rankings_Mat<-matrix(NA,nrow=10,ncol=10)
 ```
 
 ```{r}
 #Function for finding rankings
 Ranks<-function(year){
   #Loading data
-  Data<-TennisTidyr(year-5,year,2021,1,"wta_matches_",FALSE,FALSE)
+  Data<-TennisTidyr(year-5,year,2021,1,"tennis_wta/wta_matches_",FALSE,FALSE)
 
 Train<-Data[[1]]
 names<-Data[[3]]
@@ -59,8 +59,8 @@ Rankings<-data_frame(Players=sort(names),Ranks=BTabilities(BTModel)[1:length(nam
 Rankings<-Rankings[order(Rankings$Ranks,decreasing=TRUE),]
 #print(Rankings)
 
-ranks<-rep(0,10)
-for (i in 1:10){
+ranks<-rep(0,M)
+for (i in 1:M){
   if(top_players[i] %in% Rankings$Players){
   ranks[i]<-which(Rankings$Players == top_players[i])
   }
@@ -74,32 +74,12 @@ return(ranks)
 ```
 
 ```{r warning=FALSE}
+#Matrix for rankings
+Rankings_Mat<-matrix(NA,nrow=M,ncol=10)
+
 for (i in 2010:2019){
   Rankings_Mat[,i-2009]<-Ranks(i)
 }
-```
-
-```{r}
-library(ggplot2)
-
-Rankings_Data<-data_frame(Year=seq(2010,2019),as.data.frame(t(Rankings_Mat)))
-Rankings_Data$Year<-as.integer(Rankings_Data$Year)
-colnames(Rankings_Data)<-c('Year',top_players)
-
-
-ggplot(data=Rankings_Data,aes(x=Year,y=V3))+
-  geom_point(col='red') +
-  geom_line(col='red') +
-  geom_point(aes(x=Year,y=V4),col='blue') +
-  geom_line(aes(x=Year,y=V4),col='blue') +
-   scale_y_reverse() +
-  legend(fill=top_players[1:2])
-```
-
-```{r}
-longDat <- Rankings_Data %>% pivot_longer(cols = everything(), names_to = "ID", values_to = "dem") %>% dplyr::arrange(ID)
-
-longDat
 ```
 
 ```{r}
@@ -121,7 +101,50 @@ ggplot(longerDat,aes(x = Year, y = Ranks, col = Players)) +
   scale_y_reverse() +
    theme(axis.text.x = element_text(angle = 50, vjust = 1, hjust = 1)) +
   scale_x_continuous(labels = label_number(accuracy = 1),breaks=breaks)
-  labs(x='Year',y='Ranking',title='Rankings from 2010-2019') 
+  labs(x='Year',y='Ranking',title='Rankings from 2010-2019')
 ```
 
+```{r}
+#PLOTTING WTA RANK AGAINST OURS
+
+#Function for finding WTA rankings
+WTA_Ranks<-function(year){
+  data<-read_csv(paste('tennis_wta/wta_matches_',as.character(year),".csv", sep=""),show_col_types = FALSE)
+  ranks<-rep(NA,M)
+  for (i in 1:M){
+    possible_ranks<-data$winner_rank[data$winner_name==top_players[i]]
+    if(length(possible_ranks>0)){
+      ranks[i]<-min(possible_ranks)
+    }
+  }
+  return(ranks)
+}
+```
+
+```{r}
+#Matrix for rankings
+WTA_Rankings_Mat<-matrix(NA,nrow=M,ncol=10)
+
+for (i in 2010:2019){
+  WTA_Rankings_Mat[,i-2009]<-WTA_Ranks(i)
+}
+
+WTA_Rankings_Data<-as.data.frame(t(WTA_Rankings_Mat),row.names = seq(2010,2019))
+colnames(WTA_Rankings_Data)<-top_players
+longDat <- WTA_Rankings_Data %>% pivot_longer(cols = everything(), names_to = "Players", values_to = "Ranks") %>% dplyr::arrange(Players)
+WTA_longerDat<-longDat %>% group_by(Players) %>%
+            slice(1:10) %>%
+            mutate(Year = as.numeric(row_number()+2009))
+```
+```{r}
+ggplot(longerDat,aes(x = Year, y = Ranks, col = Players)) +
+            geom_point() +
+            geom_line() +
+    geom_line(data=WTA_longerDat,aes(x = Year, y=Ranks, col=Players),linetype=3) +
+  theme_solarized() +
+  scale_y_reverse() +
+   theme(axis.text.x = element_text(angle = 50, vjust = 1, hjust = 1)) +
+  scale_x_continuous(labels = label_number(accuracy = 1),breaks=breaks)
+  labs(x='Year',y='Ranking',title='Rankings from 2010-2019')
+```
 

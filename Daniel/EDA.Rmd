@@ -112,7 +112,7 @@ plot2<-ggplot(Missing_Data,aes(x=Year,y=Mis_Age))+
   theme_solarized() +
   labs(x='Year',y='Proportion of Missing Data',title=' Missing Age Data per Year')
 plot3<-ggplot(Missing_Data,aes(x=Year,y=Mis_hts))+
-  geom_bar(stat="identity",fill='darkgreen',breaks=10) +
+  geom_bar(stat="identity",fill='darkgreen') +
   theme_solarized() +
   labs(x='Year',y='Proportion of Missing Data',title=' Missing Height Data per Year')
 plot_grid(plot1,plot2,plot3,nrow=1)

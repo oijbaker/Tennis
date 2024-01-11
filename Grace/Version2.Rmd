@@ -115,7 +115,9 @@ Next, we create the 'contest' dataframe where each row represents a match:
 # Create indices that allow us to extract matches where both the winner and loser must be in 'predictors$Player'
 indices_w <- winner_name %in% predictors$Player
 indices_l <- loser_name %in% predictors$Player
-indices <- indices_w == TRUE & indices_l == TRUE
+indices_wh <- (winner_hand != "U")
+indices_lh <- (loser_hand != "U")
+indices <- indices_w == TRUE & indices_l == TRUE & indices_wh == TRUE & indices_lh == TRUE
 
 # Extract 'winner_name', 'loser_name' and 'surface' columns from 'data', and keep only the matches marked TRUE by indices
 contests <- data.frame(Winner=factor(winner_name[indices]), Loser=factor(loser_name[indices]), Surface=factor(surface[indices]))

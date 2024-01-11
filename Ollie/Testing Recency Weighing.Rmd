@@ -96,7 +96,7 @@ mat <- matrix(0, nrow = length(players), ncol = length(players))
 colnames(mat) <- players
 rownames(mat) <- players
 
-recency_weighting = 0.8
+recency_weighting = 0.5
 
 for (i in 1:nrow(df1)) {
   row <- df1[i,]
@@ -139,7 +139,21 @@ predict <- function(player1, player2) {
   lambda1 <- df_coeff[player1,1]
   lambda2 <- df_coeff[player2,1]
 
-  pred <- exp(lambda1) / (exp(lambda1) + exp(lambda2))
+  pred <- exp(lambda1) / (exp(lambda1) + exp(lambda2))# Define the file path
+file_paths <- c("../data/wta_matches_2022.csv", "../data/wta_matches_2021.csv", 
+                "../data/wta_matches_2020.csv",
+                "../data/wta_matches_2019.csv", "../data/wta_matches_2018.csv",
+                "../data/wta_matches_2017.csv", "../data/wta_matches_2016.csv",
+                "../data/wta_matches_2015.csv", "../data/wta_matches_2014.csv",
+                "../data/wta_matches_2013.csv")
+
+df1 <- read.csv(file_paths[1])
+
+for (i in 2:(length(file_paths)-1)) {
+  df1 <- rbind(df1, read.csv(file_paths[i]))
+}
+
+df1 <- df1[,c("winner_name","loser_name","tourney_date")]
   return(c(pred>0.5, pred))
 }
 ```
@@ -175,15 +189,20 @@ library(rlist)
 # find the accuracy
 draws$correct <- draws$pred > 0.5
 num <-nrow(filter(draws, draws$correct))
-num / nrow(draws)
+print(num / nrow(draws))
 ```
 
 Now make the model with time weighting.
 
 ```{r}
+recency_weighting <- 0.5
+weights <- sapply(df1$time, function(x) time_weighting(x, recency_weighting))
+```
+
+```{r}
 players <- intersect(df1$winner_name, df1$loser_name)
 btm <- BTm(outcome=1, factor(winner_name, levels=players), factor(loser_name, levels=players), 
-                    formula=~player*time, id='player', data=df1)
+                    weights = weights, id='player', data=df1)
 ```
 
 ```{r}
@@ -215,10 +234,93 @@ for (i in 1:nrow(draws)) {
 library(rlist)
 # find the accuracy
 draws$correct <- draws$pred > 0.5
-num <-nrow(filter(draws, draws$correct))
+num <- nrow(filter(draws, draws$correct))
 num / nrow(draws)
 ```
 
+Much better :) Test all of them.
+
 ```{r}
-summary(btm)
+for (recency_weighting in seq(0.1,1,0.1)) {
+  cat(recency_weighting)
+  weights <- sapply(df1$time, function(x) time_weighting(x, recency_weighting))
+  btm <- BTm(outcome=1, factor(winner_name, levels=players), factor(loser_name, levels=players), 
+                    weights = weights, id='player', data=df1)
+  
+  df_coeff <- as.data.frame(BTabilities(btm))
+  
+  # make predictions
+  draws <- matches_2023[,c("winner_name","loser_name")]
+  draws <- draws[draws$winner_name %in% players & draws$loser_name %in% players, ]
+  
+  for (i in 1:nrow(draws)) {
+    player1 <- draws$winner_name[i]
+    player2 <- draws$loser_name[i]
+    pred <- predict(player1, player2)
+    draws$pred[i] <- pred[2]
+  }
+  
+  draws$correct <- draws$pred > 0.5
+  num <- nrow(filter(draws, draws$correct))
+  cat(num / nrow(draws), "\n")
+} 
+```
+
+So choose $f = 0.4$.
+
+```{r}
+standard_error <- function(x) sd(x) / sqrt(length(x))
+```
+
+```{r}
+for (recency_weighting in seq(0.1,1,0.1)) {
+  cat(recency_weighting)
+  weights <- sapply(df1$time, function(x) time_weighting(x, recency_weighting))
+  btm <- BTm(outcome=1, factor(winner_name, levels=players), factor(loser_name, levels=players), 
+                    weights = weights, id='player', data=df1)
+  
+  df_coeff <- as.data.frame(BTabilities(btm))
+  
+  # make predictions
+  draws <- matches_2023[,c("winner_name","loser_name")]
+  draws <- draws[draws$winner_name %in% players & draws$loser_name %in% players, ]
+  
+  for (i in 1:nrow(draws)) {
+    player1 <- draws$winner_name[i]
+    player2 <- draws$loser_name[i]
+    pred <- predict(player1, player2)
+    draws$pred[i] <- pred[2]
+  }
+  
+  draws$correct <- draws$pred > 0.5
+  num <- nrow(filter(draws, draws$correct))
+  cat(" ", num / nrow(draws), " ",
+      mean(draws[draws$pred > 0.5,]$pred), " ", standard_error(draws[draws$pred > 0.5,]$pred), " ",
+      mean(log(draws[draws$pred > 0.5,]$pred)), " ", standard_error(log(draws[draws$pred > 0.5,]$pred)), "\n")
+} 
+```
+
+| Time weighting | Accuracy | Average Probability | Average Log Probability |
+|----------------|----------|---------------------|-------------------------|
+| 0.1            | 0.640625 | 0.708 (0.004)       | -0.362 (0.006)          |
+| 0.2            | 0.639375 | 0.700 (0.004)       | -0.372 (0.006)          |
+| 0.3            | 0.63625  | 0.694 (0.004)       | -0.380 (0.005)          |
+| 0.4            | 0.640625 | 0.688 (0.004)       | -0.389 (0.005)          |
+| 0.5            | 0.63625  | 0.684 (0.004)       | -0.394 (0.005)          |
+| 0.6            | 0.635625 | 0.679 (0.004)       | -0.401 (0.005)          |
+| 0.7            | 0.6375   | 0.674 (0.003)       | -0.407 (0.005)          |
+| 0.8            | 0.63375  | 0.673 (0.003)       | -0.410 (0.005)          |
+| 0.9            | 0.631875 | 0.672 (0.003)       | -0.410 (0.005)          |
+| 1              | 0.625625 | 0.674 (0.003)       | -0.407 (0.005)          |
+
+```{r}
+btm_w_1 = BTm(outcome=1, factor(winner_name, levels=players), factor(loser_name, levels=players), 
+                    weights = sapply(df1$time, function(x) time_weighting(x, 1)), id='player', data=df1)
+as.data.frame(BTabilities(btm_w_1))[order(-BTabilities(btm_w_1)),]
+```
+
+```{r}
+btm_w_01 = BTm(outcome=1, factor(winner_name, levels=players), factor(loser_name, levels=players), 
+                    weights = sapply(df1$time, function(x) time_weighting(x, 0.1)), id='player', data=df1)
+as.data.frame(BTabilities(btm_w_01))[order(-BTabilities(btm_w_01)),]
 ```

@@ -3,9 +3,8 @@ library(dplyr)
 library(ggplot2)
 library(BradleyTerry2)
 library(readr)
-library(here)
 
-source(here::here("Tennis/R/main.R"))
+source("R/main.R")
 
 train_matrices <- list()
 
@@ -15,7 +14,7 @@ end <- 2023
 # Read in data
 for (start_year in start:(end-1)) {
     wl_matrix = getWinLossBinomial(start_year, end-1, end,
-                                   20, here("data/wta_matches_"))
+                                   20, "../tennis_wta-master/wta_matches_")
     train_matrices[[start_year]] = wl_matrix
 
     if (start_year == start) {

@@ -1,0 +1,96 @@
+# Rankings Baseline Model
+
+```{r}
+data <- read.csv("../data/wta_matches_2022.csv")
+data
+```
+
+```{r}
+# open the 2023 file and make predictions
+matches_2023 <- read.csv("../data/wta_matches_2023.csv")
+# make training data
+matches_2023 <- matches_2023[, c("winner_name", "loser_name", "winner_rank_points", "loser_rank_points", "winner_rank", "loser_rank")]
+matches_2023
+```
+
+```{r}
+matches_2023 <- na.omit(matches_2023)
+data <- na.omit(data)
+player_names <- intersect(matches_2023$winner_name, matches_2023$loser_name)
+player_names <- intersect(player_names,data$loser_name)
+player_names <- intersect(player_names,data$winner_name)
+players <- as.data.frame(player_names)
+
+ranking_points <- data.frame(col.names = player_names)
+
+for (p in 1:nrow(players)) {
+  player <- players[p,]
+  
+  # find the last occurence of the name in winner_name or loser_name in 2022
+  last_occurrence_win <- tail(which(data$winner_name == player), 1)
+  last_occurrence_loss <- tail(which(data$loser_name == player), 1)
+  
+  win <- last_occurrence_loss < last_occurrence_win
+  if (win) {
+    ranking_points[,player] <- data$winner_rank_points[last_occurrence_win]
+  } else {
+    ranking_points[,player] <- data$loser_rank_points[last_occurrence_loss]
+  }
+}
+
+ranking_points <- as.data.frame(t(ranking_points))
+ranking_points['Iga Swiatek',][,1]
+```
+
+```{r}
+probs <- c()
+correct <- 0
+total <- 0
+
+for (p in 1:nrow(matches_2023)) {
+  p1 <- matches_2023$winner_name[p]
+  p2 <- matches_2023$loser_name[p]
+  prob <- as.numeric(ranking_points[p1,][,1])/(as.numeric(ranking_points[p1,][,1])+as.numeric(ranking_points[p2,][,1]))
+  if (is.na(prob)) {
+    next
+  }
+  total <- total + 1
+  if (prob > 0.5) {
+    correct <- correct + 1
+    probs <- c(probs, prob)
+  }
+}
+```
+```{r}
+print(correct/total)
+mean(probs)
+mean(log(probs))
+```
+
+```{r}
+m <- matches_2023
+m <- filter(m, m$winner_rank < m$loser_rank)
+```
+
+```{r}
+nrow(m)/nrow(matches_2023)
+```
+
+```{r}
+matches_2023$pred <- matches_2023$winner_rank_points/(matches_2023$winner_rank_points+matches_2023$loser_rank_points)
+matches_2023
+```
+
+```{r}
+library(rlist)
+matches_2023 <- na.omit(matches_2023)
+# find the accuracy
+matches_2023$correct <- matches_2023$pred > 0.5
+num <- nrow(filter(matches_2023, matches_2023$correct))
+print(num / nrow(matches_2023))
+```
+
+```{r}
+matches_2023[matches_2023$pred > 0.5,]$pred
+cat(mean(matches_2023[matches_2023$pred > 0.5,]$pred), " ", standard_error(matches_2023[matches_2023$pred > 0.5,]$pred))
+```

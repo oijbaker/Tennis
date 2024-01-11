@@ -99,10 +99,27 @@ By plotting the amount of variables (non-zero columns) and percentage of missing
 ```{r}
 #Plotting results 
 library(ggplot2)
-par(mfrow=c(1,3))
-barplot(fullcols,names.arg = years,xlab='Year',ylab='Number of Variables',main='Available Data per Year')
-barplot(mis_ages,names.arg = years,xlab='Year',ylab='Proportion of Missing Data',main=' Missing Age Data per Year')
-barplot(mis_hts,names.arg = years,xlab='Year',ylab='Proportion of Missing Data',main=' Missing Height Data per Year')
+library(cowplot)
+
+Missing_Data<-data_frame(Year=years,Mis_Age =mis_ages,Mis_hts=mis_hts,Fullcols=fullcols)
+
+plot1<-ggplot(Missing_Data,aes(x=Year,y=Fullcols))+
+  geom_bar(stat="identity",fill='darkblue') +
+  theme_solarized() +
+  labs(x='Year',y='Number of Variables',title='Available Data per Year')
+plot2<-ggplot(Missing_Data,aes(x=Year,y=Mis_Age))+
+  geom_bar(stat="identity",fill='darkred') +
+  theme_solarized() +
+  labs(x='Year',y='Proportion of Missing Data',title=' Missing Age Data per Year')
+plot3<-ggplot(Missing_Data,aes(x=Year,y=Mis_hts))+
+  geom_bar(stat="identity",fill='darkgreen',breaks=10) +
+  theme_solarized() +
+  labs(x='Year',y='Proportion of Missing Data',title=' Missing Height Data per Year')
+plot_grid(plot1,plot2,plot3,nrow=1)
+
+#barplot(fullcols,names.arg = years,xlab='Year',ylab='Number of Variables',main='Available Data per Year')
+#barplot(mis_ages,names.arg = years,xlab='Year',ylab='Proportion of Missing Data',main=' Missing Age Data per Year')
+#barplot(mis_hts,names.arg = years,xlab='Year',ylab='Proportion of Missing Data',main=' Missing Height Data per Year')
 ```
 
 Now we have justification for sticking mostly to modern data, we can start to think about which players are relevant in our model. We suspect that not all players need to necessarily be included. For instance, a rogue player that has only played one game will input very little into our model's predictive power. We can quantify this suspicion by plotting each players total number of games played from 2020-2022.
@@ -131,10 +148,25 @@ for (i in 1:N){
   num_games[i]<-length(which(num_names==names[i]))
 }
 
+Num_Game_Data<-data_frame(Num_Games=num_games)
+plot4<-ggplot(Num_Game_Data,aes(x=Num_Games))+
+  theme_solarized() +
+  geom_histogram(binwidth = 1,fill='darkblue') +
+  labs(x='Games Played',y='Frequency',title='Number of Games played per Player (2020-2022)')
+
+plot5<-ggplot(Num_Game_Data,aes(x=Num_Games))+
+  theme_solarized() +
+  geom_histogram(binwidth = 1,fill='darkblue',col='white') +
+  xlim(c(0,10)) +
+  labs(x='Games Played',y='Frequency',title='Number of Games played per Player (2020-2022) [Zoomed]')
+
+plot_grid(plot4,plot5,nrow=1)
+
+
 #Plotting results
-par(mfrow=c(1,2))
-hist(num_games,breaks=200,xlab='Games Played',main='Number of Games played per Player (2020-2022)')
-hist(num_games,breaks=200,xlim=c(1,10),xlab='Games Played',main='Number of Games played per Player (2020-2022) [Zoomed]')
+#par(mfrow=c(1,2))
+#hist(num_games,breaks=200,xlab='Games Played',main='Number of Games played per Player (2020-2022)')
+#hist(num_games,breaks=200,xlim=c(1,10),xlab='Games Played',main='Number of Games played per Player (2020-2022) [Zoomed]')
 ```
 
 To then create a list of 'significant' players, we only include players from 2020-2022 who have played more than 5 games over those 3 years, and have then also played again in 2023 (So we can predict their performance in the test set).

@@ -1,0 +1,46 @@
+# Motivating the Use of a Surface Parameter
+
+This markdown provides the code to score the BT model on each of the different surfaces, and demonstrate why we need to consider the surface the match was played on.
+
+```{r}
+library(TennisBT)
+library(BradleyTerry2)
+```
+
+In the TennisBT package, we have three files, grass_data, clay_data, and hard_data containing binomial win data for each player pairing in the training set on each surface.
+
+```{r}
+nrow(grass_data)
+nrow(clay_data)
+nrow(hard_data)
+```
+
+We can see that the vast majority of matches are played on a hard court, few matches are played on grass. In fact, only 7 of the 56 WTA tournaments are plated on grass in each calendar year. With this implying low data availability, we expect a larger degree of error in the grass data.
+
+```{r}
+grass_btm <- BTm(cbind(win1,win2), factor(player1), factor(player2), data=grass_data)
+hard_btm <- BTm(cbind(win1,win2), factor(player1), factor(player2), data=hard_data)
+clay_btm <- BTm(cbind(win1,win2), factor(player1), factor(player2), data=clay_data)
+```
+
+Now we will rank the top 10 players on each surface, and show the differences between them.
+
+```{r}
+grass_df <- as.data.frame(BTabilities(grass_btm))
+grass_df <- grass_df[order(-grass_df$ability),]
+head(grass_df,10)
+```
+
+```{r}
+hard_df <- as.data.frame(BTabilities(hard_btm))
+hard_df <- hard_df[order(-hard_df$ability),]
+head(hard_df,10)
+```
+
+```{r}
+clay_df <- as.data.frame(BTabilities(clay_btm))
+clay_df <- clay_df[order(-clay_df$ability),]
+head(clay_df,10)
+```
+
+We see that many of the players are very different on each surface, which motivates including surface. One solution is to train the three separate models, one on each surface, and predict each match with the model corresponding to the surface that it is on. However, as seen in the grass model, this results in very high errors as few matches were played on grass. Also, it is not true that matches on different surfaces are completely independent. If a player comfortably beats another on a hard court, it is a reasonable assumption that the same outcome will happen on either grass or clay, however, the probability of this occurring may be different.

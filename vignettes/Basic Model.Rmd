@@ -1,0 +1,39 @@
+# Basic Model
+
+Here we reproduce the results for the standard BT model.
+
+```{r}
+library(TennisBT)
+library(BradleyTerry2)
+```
+
+First we will get the training data.
+
+```{r}
+data <- TennisTidyr(2013,2022,2023,20)
+train <- data$train
+test <- data$test
+players <- data$main_names
+```
+
+Now we can fit the BT model.
+
+```{r}
+btm <- BTm(outcome=1, factor(winner_name, levels=players), factor(loser_name, levels=players), 
+                    formula=~player, id='player', data=train)
+```
+
+```{r}
+summary(btm)
+```
+
+Finally we can predict the 2023 season and find the model scores.
+
+```{r}
+predictions <- predict_matches(test, players, btm)
+head(predictions)
+```
+
+```{r}
+score_predictions(predictions)
+```

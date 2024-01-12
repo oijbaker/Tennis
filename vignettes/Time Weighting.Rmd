@@ -1,0 +1,43 @@
+# Time Weighting
+
+Here we perform the search of $w$ parameters for the time weighting.
+
+```{r}
+library(TennisBT)
+library(BradleyTerry2)
+```
+
+```{r}
+data <- TennisTidyr(2013,2022,2023,20)
+train <- data$train
+test <- data$test
+players <- data$main_names
+```
+
+Test a model using each of the $w \in \{0.1,0.2,…1\}$.
+
+```{r}
+scores <- data.frame(matrix(0, ncol=5, nrow=10), row.names = seq(0.1,1,0.1))
+colnames(scores) <- c("Accuracy", "Avg Prob", "Avg Prob SE", "Avg Log Prob", "Avg Log Prob SE")
+
+row_count = 1
+for (recency_weighting in seq(0.1,1,0.1)) {
+  cat("w=",recency_weighting,"\n")
+  weights <- get_recency_weights(train, recency_weighting)
+  
+  btm <- BTm(outcome=1, factor(winner_name, levels=players), factor(loser_name, levels=players), 
+                    weights = weights, id='player', data=train)
+  
+  predictions <- predict_matches(test, players, btm)
+  score <- score_predictions(predictions)
+  
+  scores[row_count, ]["Accuracy"] <- score$accuracy
+  scores[row_count, ]["Avg Prob"] <- score$avg_probability
+  scores[row_count, ]["Avg Prob SE"] <- score$avg_prob_se
+  scores[row_count, ]["Avg Log Prob"] <- score$avg_log_probability
+  scores[row_count, ]["Avg Log Prob SE"] <- score$abg_log_prob_se
+  
+  row_count <- row_count + 1
+}
+scores
+```

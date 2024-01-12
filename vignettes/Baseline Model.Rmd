@@ -1,0 +1,48 @@
+# Baseline Model
+
+This model will base player abilities on their WTA ranking points. Using points as opposed to rank allows for a finer grading of each player. For example, the difference in abilities of a player ranked $n$ and a player ranked $n+1$ may be different to the difference in abilities of a player ranked $n+1$ and $n+2$, despite having the same difference in rank. This difference will be reflected by the ranking points.
+
+```{r}
+library(TennisBT)
+library(tidyverse)
+```
+
+```{r}
+data <- TennisTidyr(2022,2022,2023,20)
+train <- data$train
+test <- data$test
+players <- data$main_names
+```
+
+```{r}
+ranking_points <- data.frame(row.names = players)
+rp <- list()
+
+for (p in 1:length(players)) {
+  player <- players[p]
+  
+  # find the last occurence of the name in winner_name or loser_name in 2022
+  last_occurrence_win <- tail(which(train$winner_name == player), 1)
+  last_occurrence_loss <- tail(which(train$loser_name == player), 1)
+  
+  win <- last_occurrence_loss < last_occurrence_win
+  if (win) {
+    rp[[player]] <- train$winner_rank_points[last_occurrence_win]
+  } else {
+    rp[[player]] <- train$loser_rank_points[last_occurrence_loss]
+  }
+}
+```
+
+We have now stored each player with their year-end ranking points for 2022, and will use these to predict the 2023 season.
+
+```{r}
+draws <- test[c('winner_name', "loser_name")]
+draws$winner_rp <- sapply(draws$winner_name, function(x) rp[[x]])
+draws$loser_rp <- sapply(draws$loser_name, function(x) rp[[x]])
+draws$pred <- draws$winner_rp/(draws$winner_rp+draws$loser_rp)
+```
+
+```{r}
+score_predictions(draws)
+```

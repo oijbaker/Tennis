@@ -1,0 +1,123 @@
+---
+output: pdf_document
+---
+# Surface and Time
+
+```{r}
+library(TennisBT)
+library(tidyverse)
+library(BradleyTerry2)
+
+data <- TennisTidyr(2013, 2022, 2023, 20)
+train <- data$train
+test <- data$test
+players <- data$main_names
+```
+
+Set up the model as with in the surface experiment.
+
+```{r}
+final_grass_clay <- 0.4
+final_hard_clay <- 0.8
+final_grass_hard <- 0.5
+```
+
+```{r}
+predict_with_surface <- function(time_weights) {
+  
+  weighting <- as.data.frame(diag(3))
+  rownames(weighting) <- c("Grass", "Hard", "Clay")
+  colnames(weighting) <- c("Grass", "Hard", "Clay")
+  weighting['Grass', 'Hard'] <- final_grass_hard
+  weighting['Hard', 'Grass'] <- final_grass_hard
+  weighting['Clay', 'Hard'] <- final_hard_clay
+  weighting['Hard', 'Clay'] <- final_hard_clay
+  weighting['Clay', 'Grass'] <- final_grass_clay
+  weighting['Grass', 'Clay'] <- final_grass_clay
+  
+  for (i in 1:nrow(train)) {
+    train[i, 'grass_weight'] <- weighting[train[i, 'surface'], 'Grass']
+    train[i, 'clay_weight'] <- weighting[train[i, 'surface'], 'Clay']
+    train[i, 'hard_weight'] <- weighting[train[i, 'surface'], 'Hard']
+  }
+  
+  btm_grass <- BTm(outcome = 1, factor(winner_name, levels=players), factor(loser_name, levels=players), weights = abs(grass_weight)*time_weights, data = train)
+  btm_clay <- BTm(outcome = 1, factor(winner_name, levels=players), factor(loser_name, levels=players), weights = abs(clay_weight)*time_weights, data = train)
+  btm_hard <- BTm(outcome = 1, factor(winner_name, levels=players), factor(loser_name, levels=players), weights = abs(hard_weight)*time_weights, data = train)
+  
+  # Create a dataframe with the Bradley-Terry estimates for each surface
+  btm_grass_df <- as.data.frame(BTabilities(btm_grass))
+  btm_clay_df <- as.data.frame(BTabilities(btm_clay))
+  btm_hard_df <- as.data.frame(BTabilities(btm_hard))
+  
+  coeff_frames <- list('Grass' = btm_grass_df, 'Clay' = btm_clay_df,
+                       'Hard' = btm_hard_df)
+  
+  draws <- test[, c("winner_name", "loser_name", "surface")]
+  draws$pred <- NA
+  
+  # predict the test set using a different model based on the surface
+  for (i in 1:nrow(draws)) {
+    player1 <- draws$winner_name[i]
+    player2 <- draws$loser_name[i]
+    draw_surface <- draws$surface[i]
+  
+    pred <- predict(player1, player2, as.data.frame(coeff_frames[draw_surface]))
+    draws$pred[i] <- pred[2]
+  }
+  
+  return(draws)
+}
+```
+
+Test this surface model with all of the time weighting parameters.
+
+```{r}
+scores <- data.frame(matrix(0, ncol=5, nrow=10), row.names = seq(0.1,1,0.1))
+colnames(scores) <- c("Accuracy", "Avg Prob", "Avg Prob SE", "Avg Log Prob", "Avg Log Prob SE")
+
+row_count = 1
+for (recency_weighting in seq(0.1,1,0.1)) {
+  cat("w=",recency_weighting,"\n")
+  weights <- get_recency_weights(train, recency_weighting)
+
+  predictions <- predict_with_surface(weights)
+  score <- score_predictions(predictions)
+  
+  scores[row_count, ]["Accuracy"] <- score$accuracy
+  scores[row_count, ]["Avg Prob"] <- score$avg_probability
+  scores[row_count, ]["Avg Prob SE"] <- score$avg_prob_se
+  scores[row_count, ]["Avg Log Prob"] <- score$avg_log_probability
+  scores[row_count, ]["Avg Log Prob SE"] <- score$abg_log_prob_se
+  
+  row_count <- row_count + 1
+}
+scores
+```
+
+Then we have that the best time weighting is between 0.1 and 0.3, so we can split it down further.
+
+```{r}
+scores <- data.frame(matrix(0, ncol=5, nrow=21), row.names = seq(0.1,0.3,0.01))
+colnames(scores) <- c("Accuracy", "Avg Prob", "Avg Prob SE", "Avg Log Prob", "Avg Log Prob SE")
+
+row_count = 1
+for (recency_weighting in seq(0.1,0.3,0.01)) {
+  cat("w=",recency_weighting,"\n")
+  weights <- get_recency_weights(train, recency_weighting)
+
+  predictions <- predict_with_surface(weights)
+  score <- score_predictions(predictions)
+  
+  scores[row_count, ]["Accuracy"] <- score$accuracy
+  scores[row_count, ]["Avg Prob"] <- score$avg_probability
+  scores[row_count, ]["Avg Prob SE"] <- score$avg_prob_se
+  scores[row_count, ]["Avg Log Prob"] <- score$avg_log_probability
+  scores[row_count, ]["Avg Log Prob SE"] <- score$abg_log_prob_se
+  
+  row_count <- row_count + 1
+}
+scores
+```
+
+Therefore the best model is with surface weighting as defined above, and time weighting of $w=0.14$.

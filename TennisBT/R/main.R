@@ -57,14 +57,14 @@ TennisTidyr <- function(startyear, endyear, testset, numgames) {
   #List of 'significant' players
   main_names <- names[num_games > numgames & names %in% test_names]
   #Only selecting columns we currently care about
-  train <- train[, c('surface', 'winner_name', 'winner_hand', 'winner_ht',
-                     'winner_age', 'loser_name', 'loser_hand', 'loser_ht',
-                     'loser_age','tourney_date','winner_rank_points',
-                     'loser_rank_points')]
-  test <- test_set[,c('surface', 'winner_name', 'winner_hand', 'winner_ht',
-                      'winner_age', 'loser_name', 'loser_hand', 'loser_ht',
-                      'loser_age','tourney_date','winner_rank_points',
-                      'loser_rank_points')]
+  train <- train[, c("winner_id", "winner_name", "winner_hand", "winner_ht", "w_ace", "w_df", "w_svpt", "w_1stIn", "w_1stWon",
+                     "w_2ndWon", "w_SvGms", "w_bpSaved", "w_bpFaced", "loser_id", "loser_name", "loser_hand", "loser_ht",
+                     "l_ace", "l_df", "l_svpt", "l_1stIn", "l_1stWon", "l_2ndWon", "l_SvGms", "l_bpSaved",
+                     "l_bpFaced", "surface","winner_rank_points","loser_rank_points","tourney_date")]
+  test <- test_set[,c("winner_id", "winner_name", "winner_hand", "winner_ht", "w_ace", "w_df", "w_svpt", "w_1stIn", "w_1stWon",
+                      "w_2ndWon", "w_SvGms", "w_bpSaved", "w_bpFaced", "loser_id", "loser_name", "loser_hand", "loser_ht",
+                      "l_ace", "l_df", "l_svpt", "l_1stIn", "l_1stWon", "l_2ndWon", "l_SvGms", "l_bpSaved",
+                      "l_bpFaced", "surface","winner_rank_points","loser_rank_points","tourney_date")]
 
   test
 
@@ -155,6 +155,3 @@ score_predictions <- function(predictions) {
               avg_log_probability = avg_log_probability,
               abg_log_prob_se = avg_log_prob_se))
 }
-
-clay_data <- read.csv("R/surface_data/matches_clay.csv")
-usethis::use_data(clay_data, overwrite = TRUE)

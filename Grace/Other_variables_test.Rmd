@@ -1,0 +1,118 @@
+---
+title: "Version3"
+author: "Grace Yan"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=FALSE}
+library(readr)
+library(plyr)
+
+myfiles <- list.files(path = "/home/cr23868/Documents/Tennis/R_code/tennis_wta-master_test", pattern = ".csv", full.names=TRUE)
+dat_csv_test <- ldply(myfiles, read_csv)
+```
+
+```{r, message=FALSE}
+library(tidyr)
+library(dplyr)
+
+##### Extracting necessary columns and removing NAs
+data_test <- data.frame(dat_csv_test[,c("winner_id", "winner_name", "winner_hand", "winner_ht", "w_ace", "w_df", "w_svpt", "w_1stIn", "w_1stWon",
+                              "w_2ndWon", "w_SvGms", "w_bpSaved", "w_bpFaced", "loser_id", "loser_name", "loser_hand", "loser_ht",
+                              "l_ace", "l_df", "l_svpt", "l_1stIn", "l_1stWon", "l_2ndWon", "l_SvGms", "l_bpSaved",
+                              "l_bpFaced", "surface")])
+data_test <- na.omit(data_test)
+detach(data)
+attach(data_test)
+```
+
+Selecting matches that only contain the players we considered during training:
+
+```{r}
+indices_test <- winner_name %in% players == TRUE & loser_name %in% players
+matches_test <- data.frame( Winner=factor(winner_name[indices_test]), Loser=factor(loser_name[indices_test]) ) # 1954 matches
+players_test <- unique( c(matches_test[,1], matches_test[,2]) ) # 215 players
+# Make sure Winner and Loser factors have same number of levels as # players
+levels(matches_test$Winner) <- levels(players_test)
+levels(matches_test$Loser) <- levels(players_test)
+```
+
+## Creating variables
+
+```{r}
+# Extract Surface variable for the matches we're considering
+Surface <- surface[indices_test]
+
+# Creating 3 dataframes for matches played on clay, grass, hard court
+ind_clay <- Surface == "Clay"
+ind_grass <- Surface == "Grass"
+ind_hard <- Surface =="Hard"
+matches_clay <- matches_test[ind_clay,] # 582 on clay
+matches_grass <- matches_test[ind_grass,] # 248 on grass
+matches_hard <- matches_test[ind_hard,] # 1124 on hard court
+
+# Initial values for the variables we're aiming to find
+prev_wins_clay <- matrix(0, nrow=dim(matches_clay)[1], 2)
+prev_wins_grass <-matrix(0, nrow=dim(matches_grass)[1], 2)
+prev_wins_hard <- matrix(0, nrow=dim(matches_hard)[1], 2)
+
+# Apply func_surface
+func_clay <- func_surface(matches_clay, prev_wins_clay)
+func_grass <- func_surface(matches_grass, prev_wins_grass)
+func_hard <- func_surface(matches_hard, prev_wins_hard)
+```
+
+```{r}
+# Split 'matches' dataframe
+winners0 <- data.frame(Player=matches_test[,1])
+losers0 <- data.frame(Player=matches_test[,2])
+
+# Add these columns to the 'winners0' and 'losers0' dataframes
+# Hard court
+winners0$prev.wins.hard = rep(0,dim(winners0)[1])
+winners0$prev.wins.hard[which(ind_hard==TRUE)] <- func_hard[,1]
+losers0$prev.wins.hard = rep(0,dim(losers0)[1])
+losers0$prev.wins.hard[which(ind_hard==TRUE)] <- func_hard[,2]
+# Clay
+winners0$prev.wins.clay = rep(0,dim(winners0)[1])
+winners0$prev.wins.clay[which(ind_clay==TRUE)] <- func_clay[,1]
+losers0$prev.wins.clay = rep(0,dim(losers0)[1])
+losers0$prev.wins.clay[which(ind_clay==TRUE)] <- func_clay[,2]
+# Grass
+winners0$prev.wins.grass = rep(0,dim(winners0)[1])
+winners0$prev.wins.grass[which(ind_grass==TRUE)] <- func_grass[,1]
+losers0$prev.wins.grass = rep(0,dim(losers0)[1])
+losers0$prev.wins.grass[which(ind_grass==TRUE)] <- func_grass[,2]
+
+# Surface variable:
+winners0$Surface <- winners0$prev.wins.clay + winners0$prev.wins.grass + winners0$prev.wins.hard
+losers0$Surface <- losers0$prev.wins.clay + losers0$prev.wins.grass + losers0$prev.wins.hard
+winners0 <- winners0[,-(2:4)]
+losers0 <- losers0[,-(2:4)]
+```
+
+```{r}
+# Apply func
+variables <- func(matches_test, data_test, indices_test)
+```
+
+## Using predict()
+
+```{r}
+# Add in columns
+winners_test <- data.frame(winners0, variables$w_output)
+losers_test <- data.frame(losers0, variables$l_output)
+# Combine everything into a single list
+data_for_model_test <- list(winners=winners_test, losers=losers_test, predictors=predictors[players_test,] )
+View(data_for_model_test)
+
+# Make predictions
+pred <- predict(model, newdata=data_for_model_test, type="response", se.fit=TRUE)
+pred2 <- predict(model, newdata=data_for_model_test, se.fit=TRUE)
+View(pred)
+```
+

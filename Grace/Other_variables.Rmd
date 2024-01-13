@@ -1,0 +1,176 @@
+---
+title: "Version3"
+author: "Grace Yan"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Code from Version2 - just run without re-reading
+
+First, we load the .csv files for all the WTA matches in 2013-2021. (Change path to the appropriate folder, which should contain .csv files of only the 2013-2021 matches.)
+
+```{r, message=FALSE}
+library(readr)
+library(plyr)
+
+myfiles <- list.files(path = "/home/cr23868/Documents/Tennis/R_code/tennis_wta-master", pattern = ".csv", full.names=TRUE)
+dat_csv <- ldply(myfiles, read_csv)
+```
+
+
+
+```{r, message=FALSE}
+library(tidyr)
+library(dplyr)
+
+##### Extracting necessary columns and removing NAs
+data <- data.frame(dat_csv[,c("winner_id", "winner_name", "winner_hand", "winner_ht", "w_ace", "w_df", "w_svpt", "w_1stIn", "w_1stWon",
+                              "w_2ndWon", "w_SvGms", "w_bpSaved", "w_bpFaced", "loser_id", "loser_name", "loser_hand", "loser_ht",
+                              "l_ace", "l_df", "l_svpt", "l_1stIn", "l_1stWon", "l_2ndWon", "l_SvGms", "l_bpSaved",
+                              "l_bpFaced", "surface")])
+data <- na.omit(data)
+attach(data)
+```
+
+Creating 'players' which contains all the players who have played 20+ matches.
+
+```{r}
+# Extract all elements from winner_name and loser_name columns
+all_players <- data.frame(Player=c(winner_name,loser_name))
+# Count number of rows each unique player has in 'all_players' (i.e. each player's number of total wins & losses)
+count <- count(all_players, Player, name="Total_matches")
+# Only keep players who have played 20+ matches
+players <- filter(count, Total_matches >= 20)
+
+# Check that all the players in 'players' have won at least one match
+which( !(players$Player%in%winner_name) )
+```
+
+Starting with the 'hand' variable...
+
+```{r}
+# Make a dataframe showing the hand of each player
+hand <- data.frame(Player=c(winner_name,loser_name), Hand=c(winner_hand,loser_hand))
+hand <- distinct(hand) # eliminates duplicate rows
+# Eliminate players whose hand is unknown
+hand <- filter(hand, Hand != "U")
+```
+
+Then 'height' (a similar process to 'hand')...
+
+```{r}
+height <- data.frame(Player=c(winner_name,loser_name), Height=c(winner_ht,loser_ht))
+height <- distinct(height)
+```
+
+Next, we make the 'predictors' dataframe:
+
+```{r}
+predictors <- players %>% inner_join(hand) %>% inner_join(height)
+predictors = predictors[,-2]
+# Convert characters to factors
+predictors$Player <- factor(predictors$Player)
+predictors$Hand <- factor(predictors$Hand)
+```
+
+Then the 'matches' dataframe:
+
+```{r}
+# Create indices that allow us to extract matches where both the winner and loser must be in 'predictors$Player' and their hand is known
+indices_w <- winner_name %in% predictors$Player
+indices_l <- loser_name %in% predictors$Player
+indices_wh <- (winner_hand != "U")
+indices_lh <- (loser_hand != "U")
+indices <- indices_w == TRUE & indices_l == TRUE & indices_wh == TRUE & indices_lh == TRUE
+
+# Extract 'winner_name' and 'loser_name', and keeping only the matches marked TRUE by indices
+matches <- data.frame( Winner=factor(winner_name[indices]), Loser=factor(loser_name[indices]) )
+
+players <- unique( c(matches[,1], matches[,2]) ) # 335 players
+```
+
+## Making the other variables
+
+The large function below does the trick.
+
+```{r}
+func <- function(matches, data, indices) {
+  
+players <- unique( c(matches[,1], matches[,2]) )
+# 'scores' keeps track of each player's numbers so far.
+scores <- data.frame(Player=players,
+                     Ace=rep(0, length(players)), Df=rep(0, length(players)),
+                     Svpt=rep(0, length(players)), FirstIn=rep(0, length(players)),
+                     FirstWon=rep(0, length(players)), SecondWon=rep(0, length(players)),
+                     SvGms=rep(0, length(players)), BpSaved=rep(0, length(players)),
+                     BpFaced=rep(0, length(players)) )
+
+# Extract relevant columns from 'data'
+w_numbers <- data[indices, 5:13]
+l_numbers <- data[indices, 18:26]
+
+# 'w_output' and 'l_output' are the variables we want
+w_output <- matrix( 0, dim(matches)[1], 9 ) # because there are 9 variables
+w_output <- as.data.frame(w_output)
+colnames(w_output) <- colnames(scores[-1])
+l_output <- w_output
+
+# Print to check dimensions are correct
+View(w_numbers)
+View(l_numbers)
+View(players)
+View(scores)
+View(w_output)
+View(l_output)
+
+
+  for (n in 2:dim(matches)[1]) {
+    prev_winner <- which(scores$Player==matches[n-1,1]) # gives row number of player who won the previous match
+    scores[prev_winner, 2:10] = w_numbers[n-1,] # replaces previous match winner's score with the numbers obtained from previous match data
+    # Same for losers
+    prev_loser <- which(scores$Player==matches[n-1,2])
+    scores[prev_loser, 2:10] = l_numbers[n-1,]
+    
+    curr_player1 <- which(scores$Player==matches[n,1]) # gives row number of 1st player in upcoming match
+    curr_player2 <- which(scores$Player==matches[n,2]) # same for 2nd player
+    w_output[n,] <- scores[curr_player1, 2:10] # get current scores of 1st player in upcoming match
+    l_output[n,] <- scores[curr_player2, 2:10] # same for 2nd player
+  }
+  
+  return( list(w_output=w_output, l_output=l_output) )
+}
+
+```
+Basically, what the function does is: at step n, (i) update the scores of the (n-1)th match players and then (ii) output the scores of the nth match players.
+
+```{r}
+# Get the variables we want
+variables <- func(matches, data, indices)
+```
+
+## Fit model with continuous variables
+
+```{r}
+# Add in columns for new variables
+winners <- data.frame(Player=matches[,1], variables$w_output)
+losers <- data.frame(Player=matches[,2], variables$l_output)
+# Convert the 'Player' column to rows
+library(tibble)
+predictors = column_to_rownames(predictors, var="Player")
+
+# Combine everything into a single list
+data_for_model <- list(winners=winners, losers=losers, predictors=predictors)
+View(data_for_model)
+
+# Fit model
+model <- BTm(player1=winners, player2=losers,
+                  formula = ~  Hand[Player] + Height[Player] + Ace + Svpt,
+                  id="Player", data=data_for_model)
+model
+summary(model)
+
+```
+

@@ -1,6 +1,8 @@
 ---
 title: "Lab Notebook"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 date: "2024-01-11"
 ---
 
@@ -101,7 +103,7 @@ fullcols<-rep(0,M)
 mis_ages<-rep(0,M)
 mis_hts<-rep(0,M)
 for (i in 1:M){
-  data<-read_csv(paste("tennis_wta/wta_matches_",as.character(years[i]),".csv", sep=""),show_col_types = FALSE)
+  data<-read_csv(paste("data/tennis_wta/wta_matches_",as.character(years[i]),".csv", sep=""),show_col_types = FALSE)
   fullcols[i]<-fullcolumns(data)
   mis_ages[i]<-ismissing_age(data)/(2*dim(data)[1])
   mis_hts[i]<-ismissing_height(data)/(2*dim(data)[1])
@@ -145,7 +147,7 @@ library(tidyr)
 #Creating array of all distinct competitors from 2020-2022
 num_names<-c()
 for (i in 53:(M-1)){
-  data<-read_csv(paste("tennis_wta/wta_matches_",as.character(years[i]),".csv", sep=""),show_col_types = FALSE)
+  data<-read_csv(paste("data/tennis_wta/wta_matches_",as.character(years[i]),".csv", sep=""),show_col_types = FALSE)
   num_names<-append(num_names,c(as.matrix(data[,'winner_name']),as.matrix(data[,'loser_name'])))
 }
 names<-unique(num_names)
@@ -340,14 +342,6 @@ for (recency_weighting in seq(0.1,1,0.1)) {
   row_count <- row_count + 1
 }
 scores
-```
-Before fitting the model on our training set, we must install the package that contains our training and test datasets:
-
-```{r}
-install.packages()
-library()
-data()
-data()
 ```
 
 For model selection, we used a stepwise approach. The code used to produce the results in Table 2 is given below, along with the standard Bradley-Terry model with no covariates.
@@ -602,20 +596,6 @@ model9 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
                 FirstWon + (1|Player),
               id="Player", data=data_for_model)
 
-# Remove NA predictions
-
-pred0$fit <- na.omit(pred0$fit)
-pred1$fit <- na.omit(pred1$fit)
-pred2$fit <- na.omit(pred2$fit)
-pred3$fit <- na.omit(pred3$fit)
-pred4$fit <- na.omit(pred4$fit)
-pred5$fit <- na.omit(pred5$fit)
-pred6$fit <- na.omit(pred6$fit)
-pred7$fit <- na.omit(pred7$fit)
-pred8$fit <- na.omit(pred8$fit)
-pred9$fit <- na.omit(pred9$fit)
-
-
 summary(model0)
 summary(model_full)
 summary(model1)
@@ -639,6 +619,20 @@ pred6 <- predict(model6, newdata=data_for_model_test, type="response", se.fit=TR
 pred7 <- predict(model7, newdata=data_for_model_test, type="response", se.fit=TRUE)
 pred8 <- predict(model8, newdata=data_for_model_test, type="response", se.fit=TRUE)
 pred9 <- predict(model9, newdata=data_for_model_test, type="response", se.fit=TRUE)
+
+# Remove NA predictions
+
+pred0$fit <- na.omit(pred0$fit)
+pred1$fit <- na.omit(pred1$fit)
+pred2$fit <- na.omit(pred2$fit)
+pred3$fit <- na.omit(pred3$fit)
+pred4$fit <- na.omit(pred4$fit)
+pred5$fit <- na.omit(pred5$fit)
+pred6$fit <- na.omit(pred6$fit)
+pred7$fit <- na.omit(pred7$fit)
+pred8$fit <- na.omit(pred8$fit)
+pred9$fit <- na.omit(pred9$fit)
+
 
 mean(pred0$fit)
 length(which(pred0$fit>0.5))

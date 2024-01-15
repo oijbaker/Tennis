@@ -1,5 +1,6 @@
 ---
 title: "Lab Notebook"
+author: "Daniel Gardner, Oliver Baker, Grace Yan"
 output:
   pdf_document: 
     toc: true
@@ -23,7 +24,6 @@ library(cowplot)
 library(tidyverse)
 library(scales)
 ```
-
 
 # Code for Section 2: Data
 
@@ -84,6 +84,8 @@ ismissing_height<-function(data){
 }
 ```
 
+NOTE: If you wish to run this code yourself, it requires the full Tennis WTA Dataset from https://github.com/JeffSackmann/tennis_wta. Please download this file into the 'data' folder of our project to run.
+
 ```{r warning=FALSE}
 #Finding amount of columns, missing height and age data for each year
 
@@ -104,7 +106,7 @@ for (i in 1:M){
 }
 ```
 
-By plotting the amount of variables (non-zero columns) and percentage of missing data across time, we can see that the older data is much worse than the current, which is to be expected. For instance, the data around 1970 only has about half the variables recorded as in 2023, and over half the heights of players are not recorded. We can also see that for modern data, the proportion of missing age data is negligible. As expected also the amount of height data collected increases with time, although strangely falters past the 2010s. However we will see later why this might be.
+By plotting the amount of variables (non-zero columns) and percentage of missing data across time, we can see that the older data is much worse than the current, which is to be expected. For instance, the data around 1970 only has about half the variables recorded as in 2023, and over half the heights of players are not recorded. We can also see that for modern data, the proportion of missing age data is negligible. As expected also the amount of height data collected increases with time, although strangely falters past the 2010s. 
 
 ```{r message=FALSE, warning=FALSE}
 #PLOTTING RESULTS 
@@ -131,6 +133,7 @@ plot3<-ggplot(Missing_Data,aes(x=Year,y=Mis_hts))+
 
 plot_grid(plot1,plot2,plot3,nrow=1)
 ```
+
 ## Games Played per Player
 
 Now we have justification for sticking mostly to modern data, we can start to think about which players are relevant in our model. We suspect that not all players need to necessarily be included. For instance, a rogue player that has only played one game will input very little into our model's predictive power. We can quantify this suspicion by plotting each players total number of games played from 2020-2022.
@@ -302,6 +305,7 @@ head(predictions)
 ```{r}
 score_predictions(predictions)
 ```
+
 ## Time Weighting
 
 Here we perform the search of $w$ parameters for the time weighting.
@@ -474,6 +478,7 @@ data_for_model <- list(winners=winners, losers=losers, predictors=predictors)
 
 attach(data_test)
 ```
+
 ```{r}
 indices_test <- winner_name %in% players == TRUE & loser_name %in% players
 matches_test <- data.frame( Winner=factor(winner_name[indices_test]), Loser=factor(loser_name[indices_test]) )
@@ -546,6 +551,8 @@ data_for_model_test <- list(winners=winners_test, losers=losers_test, predictors
 
 ```
 
+Here in each iteration we compute the model using $n$ covariates, use 'summary' to see which covariate is the least significant, and then remove it to compute the next model with $n-1$ covariates. However, we have not included the printed summaries here as this takes up too many pages.
+
 ```{r}
 ##### Without covariates
 data_for_model0 <- list(matches=matches, predictors=predictors)
@@ -558,81 +565,89 @@ model_full <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
               formula = ~  Hand[Player] + Height[Player] + Surface + Ace + 
                 Df + Svpt + FirstIn + FirstWon + SecondWon + SvGms + BpSaved + 
                 BpFaced + (1|Player), id="Player", data=data_for_model)
-# Removing SvGms
+# Removing FirstIn
 model1 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
                     formula = ~  Hand[Player] + Height[Player] + Surface + 
-                    Ace + Df + Svpt + FirstIn + FirstWon + SecondWon + 
+                    Ace + Df + Svpt + SvGms + FirstWon + SecondWon + 
                     BpSaved + BpFaced + (1|Player), id="Player", 
                     data=data_for_model)
-# Removing BpFaced
+# Removing BpSaved
 model2 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
               formula = ~  Hand[Player] + Height[Player] + Surface + Ace + Df +
-                Svpt + FirstIn + FirstWon + SecondWon + BpSaved + (1|Player),
+                Svpt + SvGms + FirstWon + SecondWon + BpFaced + (1|Player),
               id="Player", data=data_for_model)
-# Removing FirstIn
+# Removing SvGms
 model3 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
               formula = ~  Hand[Player] + Height[Player] + Surface + Ace + Df +
-                Svpt +  FirstWon + SecondWon + BpSaved + (1|Player),
+                Svpt +  FirstWon + SecondWon + BpFaced + (1|Player),
               id="Player", data=data_for_model)
-# Removing BpSaved
+# Removing Hand
 model4 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
-              formula = ~  Hand[Player] + Height[Player] + Surface + Ace + Df +
+              formula = ~  BpFaced + Height[Player] + Surface + Ace + Df +
                 Svpt +  FirstWon + SecondWon + (1|Player),
               id="Player", data=data_for_model)
-# Removing Hand (although all variables are already signif at <0.1)
+# Removing BpFaced (although all variables are already signif at <0.1)
 model5 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
               formula = ~  Height[Player] + Surface + Ace + Df + Svpt +
                 FirstWon + SecondWon + (1|Player),
               id="Player", data=data_for_model)
-# Removing SecondWon
-model6 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
-              formula = ~  Height[Player] + Surface + Ace + Df + Svpt +
-                FirstWon + (1|Player),
-              id="Player", data=data_for_model)
 # Removing Height
-model7 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
-              formula = ~  Surface + Ace + Df + Svpt +
+model6 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
+              formula = ~  SecondWon + Surface + Ace + Df + Svpt +
                 FirstWon + (1|Player),
               id="Player", data=data_for_model)
 # Removing Df
-model8 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
-              formula = ~  Surface + Ace + Svpt +
+model7 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
+              formula = ~  Surface + Ace + SecondWon + Svpt +
                 FirstWon + (1|Player),
               id="Player", data=data_for_model)
 # Removing Ace
+model8 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
+              formula = ~  Surface + SecondWon + Svpt +
+                FirstWon + (1|Player),
+              id="Player", data=data_for_model)
+# Removing Surface
 model9 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
-              formula = ~  Surface + Svpt +
+              formula = ~  SecondWon + Svpt +
                 FirstWon + (1|Player),
               id="Player", data=data_for_model)
 
 # Estimating accuracy and mean probability for each model
 Models<-list(model1,model2,model3,model4,model5,model6,model7,model8,model9)
-Cov_Results<-matrix(NA,nrow=11,ncol=3)
+Cov_Results<-matrix(NA,nrow=11,ncol=5)
 
 #Full and Model0
 pred_full <- predict(model_full, newdata=data_for_model_test, type="response", se.fit=TRUE)
 pred0 <- predict(model0, newdata=data_for_model_test0, type="response", se.fit=TRUE)
 pred0$fit <- na.omit(pred0$fit)
+pred_full$fit <- na.omit(pred_full$fit)
 
 Cov_Results[1,1]<-mean(pred0$fit)
-Cov_Results[1,2]<-length(which(pred0$fit>0.5))
-Cov_Results[1,3]<-length(which(pred0$fit>0.5)) / length(pred0$fit)
+Cov_Results[1,2]<-mean(log(pred0$fit))
+Cov_Results[1,3]<-standard_error(log(pred0$fit))
+Cov_Results[1,4]<-length(which(pred0$fit>0.5)) / length(pred0$fit)
+Cov_Results[1,5]<-standard_error(pred0$fit)
 
 Cov_Results[2,1]<-mean(pred_full$fit)
-Cov_Results[2,2]<-length(which(pred_full$fit>0.5))
-Cov_Results[2,3]<-length(which(pred_full$fit>0.5)) / length(pred_full$fit)
+Cov_Results[2,2]<-mean(log(pred_full$fit))
+Cov_Results[2,3]<-standard_error(log(pred_full$fit))
+Cov_Results[2,4]<-length(which(pred_full$fit>0.5)) / length(pred_full$fit)
+Cov_Results[2,5]<-standard_error(pred_full$fit)
 
 # All other models
 for (i in 1:9){
   pred <- predict(Models[[i]], newdata=data_for_model_test, type="response", se.fit=TRUE)
   pred$fit <- na.omit(pred$fit)
   Cov_Results[i+2,1]<-mean(pred$fit)
-  Cov_Results[i+2,2]<-length(which(pred$fit>0.5))
-  Cov_Results[i+2,3]<-length(which(pred$fit>0.5)) / length(pred$fit)
+  Cov_Results[i+2,2]<-mean(log(pred$fit))
+  Cov_Results[i+2,3]<-standard_error(log(pred$fit))
+  Cov_Results[i+2,4]<-length(which(pred$fit>0.5)) / length(pred$fit)
+  Cov_Results[i+2,5]<-standard_error(pred$fit)
 }
 
 Cov_Results
 ```
+
 ## Estimating Performance over Time
 
 Now we will plot the change in predicted rankings over time, and see how this correlates with the actual WTA rankings. First we will use a weighting of 0.9 to find the 'best five players' according to our model over the entire training set.

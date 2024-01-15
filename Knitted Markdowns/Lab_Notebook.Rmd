@@ -6,6 +6,14 @@ date: "2024-01-11"
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(readr)
+library(BradleyTerry2)
+library(TennisBT)
+library(ggthemes)
+library(cowplot)
 ```
 
 # Code for Section 2: Data
@@ -169,6 +177,7 @@ plot_grid(plot4,plot5,nrow=1)
 
 # Code for Section 4: Results
 
+<<<<<<< Updated upstream
 Before fitting the model on our training set, we must install the package that contains our training and test datasets:
 
 ```{r}
@@ -306,6 +315,160 @@ length(which(pred8$fit>0.5)) / length(pred8$fit)
 mean(pred9$fit)
 length(which(pred9$fit>0.5))
 length(which(pred9$fit>0.5)) / length(pred9$fit)
+```
+
+
+Now we will plot the change in predicted rankings over time, and see how this correlates with the actual WTA rankings. First we will use a weighting of 0.9 to find the 'best five players' according to our model over the entire training set.
+
+
+
+
+```{r warning=FALSE}
+# PICKING 5 MOST IMPORTANT PLAYERS
+
+#Loading data
+Big_Data<-TennisTidyr(2013,2022,2023,5)
+Big_Train<-Big_Data$train
+players<-Big_Data$main_names
+
+#Number of top players
+M<-5
+
+#Training model
+weights <- get_recency_weights(Big_Train, 0.9)
+Big_Model <- BTm(outcome=1, factor(winner_name, levels=players), factor(loser_name, levels=players), 
+                    weights = weights, id='player', data=Big_Train)
+
+#Finding top players
+Big_Rankings<-data_frame(Players=players,Ranks=BTabilities(Big_Model)[,1])
+Big_Rankings<-Big_Rankings[order(Big_Rankings$Ranks,decreasing=TRUE),]
+top_players<-Big_Rankings$Players[1:M]
+
+top_players
+```
+
+Now we define a function for estimating these players ranks per year, now using a weighting of 0.1 and a timescale of 3 years.
+
+```{r}
+#Function for finding rankings
+Ranks<-function(year){
+  #Loading data
+  Data<-TennisTidyr(year-3,year,2023,1)
+  Train<-Data$train
+  players<-Data$main_names
+
+
+#Training model
+weights <- get_recency_weights(Train, 0.1)
+Model <- BTm(outcome=1, factor(winner_name, levels=players), factor(loser_name, levels=players), 
+                    weights = weights, id='player', data=Train)
+
+#Finding top players
+Rankings<-data_frame(Players=players,Ranks=BTabilities(Model)[,1])
+Rankings<-Rankings[order(Rankings$Ranks,decreasing=TRUE),]
+
+#Finding the ranks of each top player. If they have none, we output NA
+ranks<-rep(0,M)
+for (i in 1:M){
+  if(top_players[i] %in% Rankings$Players){
+  ranks[i]<-which(Rankings$Players == top_players[i])
+  }
+  else{
+    ranks[i]<-NA
+  }
+}
+return(ranks)
+}
+```
+
+Using this function, we call it for each year from 2016 to 2022, and store the data in a matrix.
+
+```{r warning=FALSE}
+#Matrix for rankings
+Rankings_Mat<-matrix(NA,nrow=M,ncol=7)
+
+for (i in 2016:2022){
+  Rankings_Mat[,i-2015]<-Ranks(i)
+}
+```
+
+We then transform this matrix to be formatted correctly for ggplot2, then plot the results.
+
+```{r}
+library(scales)
+library(ggthemes)
+n=7
+
+#Transforming data to fit ggplot2
+Rankings_Data<-as.data.frame(t(Rankings_Mat),row.names = seq(2016,2022))
+colnames(Rankings_Data)<-top_players
+longDat <- Rankings_Data %>% pivot_longer(cols = everything(), names_to = "Players", values_to = "Ranks") %>% dplyr::arrange(Players)
+longerDat<-longDat %>% group_by(Players) %>%
+            slice(1:n) %>%
+            mutate(Year = as.numeric(row_number()+2015))
+breaks = seq(min(longerDat$Year),max(longerDat$Year), length.out = n)
+
+#Plotting
+timeplot1<-ggplot(longerDat,aes(x = Year, y = Ranks, col = Players)) +
+            geom_point() +
+            geom_line() +
+  theme_solarized() +
+  scale_y_reverse() +
+   theme(axis.text.x = element_text(angle = 50, vjust = 1, hjust = 1)) +
+  scale_x_continuous(labels = label_number(accuracy = 1),breaks=breaks) +
+  labs(x='Year',y='Ranking',title='Rankings from 2016-2022')
+```
+
+We then repeat this process, except now looking for the WTA ranking instead of our own. We can then plot the WTA ranking over ours.
+
+```{r}
+#PLOTTING WTA RANK AGAINST OURS
+
+#Function for finding WTA rankings
+WTA_Ranks<-function(year){
+  data<-read.csv(paste('data/wta_matches_',year,'.csv',sep=''))
+  ranks<-rep(NA,M)
+  for (i in 1:M){
+    possible_ranks<-data$winner_rank[data$winner_name==top_players[i]]
+    if(length(possible_ranks>0)){
+      ranks[i]<-min(possible_ranks)
+    }
+  }
+  return(ranks)
+}
+
+#Matrix for rankings
+WTA_Rankings_Mat<-matrix(NA,nrow=M,ncol=7)
+for (i in 2016:2022){
+  WTA_Rankings_Mat[,i-2015]<-WTA_Ranks(i)
+}
+
+#Transforming Data for ggplot2
+WTA_Rankings_Data<-as.data.frame(t(WTA_Rankings_Mat),row.names = seq(2016,2022))
+colnames(WTA_Rankings_Data)<-top_players
+longDat <- WTA_Rankings_Data %>% pivot_longer(cols = everything(), names_to = "Players", values_to = "Ranks") %>% dplyr::arrange(Players)
+WTA_longerDat<-longDat %>% group_by(Players) %>%
+            slice(1:7) %>%
+            mutate(Year = as.numeric(row_number()+2015))
+
+#Removing anomaly
+WTA_longerDat$Ranks[WTA_longerDat$Players=='Iga Swiatek' & WTA_longerDat$Year==2018]<-NA
+
+#Plotting with Elina Svitolina removed
+timeplot2<-ggplot(longerDat[!longerDat$Players=='Elina Svitolina',],aes(x = Year, y = Ranks, col = Players)) +
+            geom_point() +
+            geom_line() +
+    geom_line(data=WTA_longerDat[!WTA_longerDat$Players=='Elina Svitolina',],aes(x = Year, y=Ranks, col=Players),linetype=3) +
+  theme_solarized() +
+  scale_y_reverse() +
+   theme(axis.text.x = element_text(angle = 50, vjust = 1, hjust = 1)) +
+  scale_x_continuous(labels = label_number(accuracy = 1),breaks=breaks) +
+  labs(x='Year',y='Ranking',title='Rankings from 2016-2022') 
+```
+
+```{r warning=FALSE}
+#FINAL OUTPUT
+plot_grid(timeplot1,timeplot2,nrow=1)
 ```
 
 # Github

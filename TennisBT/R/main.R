@@ -5,6 +5,16 @@ library(BradleyTerry2)
 library(tidyverse)
 
 TennisTidyr <- function(startyear, endyear, testset, numgames) {
+  #' Creates train and test datasets, as well as a list of players who played in the test set
+  #' startyear: first year to include
+  #' endyear: last year to include
+  #' testset: year of test set
+  #' numgames: minimum number of games played by each player
+  #' returns: list(train, test, main_names)
+  #' train: dataset of all games played by players in main_names between startyear and endyear
+  #' test: dataset of all games played by players in main_names in testset
+  #' main_names: list of players who played in the test set
+
   # Adding errors for if years will not match the dataset
   if (!(startyear > 2012 & startyear < 2023)) {
     stop("Error: Start year must be between 2013 and 2022")
@@ -20,6 +30,9 @@ TennisTidyr <- function(startyear, endyear, testset, numgames) {
   }
   if (endyear > testset) {
     stop("Error: End year must be less than test set")
+  }
+  if (numgames < 1) {
+    stop("Error: Number of games must be greater than 0")
   }
 
   datasets <- list("2013" = wta_matches_2013, "2014" = wta_matches_2014,
@@ -78,10 +91,24 @@ TennisTidyr <- function(startyear, endyear, testset, numgames) {
 
 
 time_weighting <- function(t, weight) {
+  #' t: time since match
+  #' weight: weight to be applied
+  #' returns: weight to be applied to match
+  if (!(weight > 0 & weight <= 1)) {
+    stop("Error: Weight must be between 0 and 1")
+  } else if (t < 0) {
+    stop("Error: Time must be positive")
+  }
   return(min(weight, weight^t))
 }
 
 func <- function(matches, data, indices) {
+  # 'matches' is a dataframe with 2 columns: winner and loser
+  # 'data' is the dataframe containing all the data
+  # 'indices' is a vector of row numbers in 'data' corresponding to the matches in 'matches'
+  #' returns: list(w_output, l_output)
+  #' w_output: dataframe of all the data for the winner in each match
+  #' l_output: dataframe of all the data for the loser in each match
 
   players <- unique( c(matches[,1], matches[,2]) )
   # 'scores' keeps track of each player's numbers so far.
@@ -128,6 +155,9 @@ func <- function(matches, data, indices) {
 }
 
 func_surface <- function(MATCHES, PREV_WINS) {
+  # 'MATCHES' is a dataframe with 2 columns: winner and loser
+  # 'PREV_WINS' is a matrix with 2 columns: previous wins of each player
+  #' returns: matrix with 2 columns: previous wins of each player on the surface of the upcoming match
 
   players <- unique( c(MATCHES[,1], MATCHES[,2]) )
   scores <- data.frame(Player=players, Score=rep(0, length(players))) # 'scores' keeps track of their # previous wins on a surface
@@ -157,6 +187,12 @@ func_surface <- function(MATCHES, PREV_WINS) {
 }
 
 get_recency_weights <- function(train_set, recency_weighting) {
+  #' Get weights to be applied to each match based on recency
+  #' train_set: dataframe of training set
+  #' recency_weighting: weight to be applied to each match
+  #' returns: vector of weights to be applied to each match
+  #' Note: if train_set does not contain a 'tourney_date' column, returns NA
+
   tryCatch(
     {
       train_set$tourney_date
@@ -176,6 +212,19 @@ get_recency_weights <- function(train_set, recency_weighting) {
 
 
 predict_ <- function(player1, player2, df_coeff) {
+  #' Predicts the probability that player1 will beat player2
+  #' player1: name of 1st player
+  #' player2: name of 2nd player
+  #' df_coeff: dataframe of coefficients
+  #' returns: vector of prediction probabilities [1] and boolean of whether player1 won [2]
+
+  if (!(player1 %in% rownames(df_coeff))) {
+    stop("Player 1 is not in the coefficient dataframe")
+  }
+  if (!(player2 %in% rownames(df_coeff))) {
+    stop("Player 2 is not in the coefficient dataframe")
+  }
+
   lambda1 <- df_coeff[player1,1]
   lambda2 <- df_coeff[player2,1]
   if (is.na(lambda1)) {
@@ -188,6 +237,12 @@ predict_ <- function(player1, player2, df_coeff) {
 
 
 predict_matches <- function(test_set, names, model) {
+  #' Predicts the probability that player1 will beat player2 for each match in test_set
+  #' test_set: dataframe of test set
+  #' names: vector of names of players in test set
+  #' model: BTm model
+  #' returns: dataframe of predictions for each match in test_set
+
   df_coeff <- as.data.frame(BTabilities(model))
 
   # make predictions
@@ -210,6 +265,16 @@ standard_error <- function(x) sd(x) / sqrt(length(x))
 
 
 score_predictions <- function(predictions) {
+  #' Scores predictions
+  #' predictions: dataframe of predictions
+  #' returns: list of accuracy, avg probability, avg probability standard error,
+  #'         avg log probability, avg log probability standard error
+  #' Note: predictions must contain a 'pred' column
+
+  if (!("pred" %in% colnames(predictions))) {
+    stop("predictions must contain a 'pred' column")
+  }
+
   # accuracy
   predictions$correct <- predictions$pred > 0.5
   num <-nrow(filter(predictions, predictions$correct))

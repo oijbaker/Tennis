@@ -31,7 +31,13 @@ test_year<-2023
 
 #Loading test set
 library(readr)
-test_set<-read_csv(paste("tennis_wta/wta_matches_",as.character(test_year),".csv", sep=""),show_col_types = FALSE)
+library(TennisBT)
+library(BradleyTerry2)
+library(tidyverse)
+library(dplyr)
+
+data <- TennisTidyr(2013, 2022, 2023, 20)
+test_set <- data$test
 ```
 
 Next we want to see how much data is actually available. From briefly skimming through the datasets we saw that not all years contain the same amount of variables. Therefore we quantify the amount of variables by measuring how many columns in the data frame actually contain data. Then we will also potentially use age and height as covariates in our model, although again by quickly looking at the .csv files we can see a fair amount of missing data. Hence we also measure this and see if it changes by year.
@@ -175,9 +181,166 @@ plot_grid(plot4,plot5,nrow=1)
 
 # Code for Section 3: Model and Evaluation Techniques
 
+## Motivating the Use of a Surface Parameter
+
+This section provides the code to score the BT model on each of the different surfaces, and demonstrate why we need to consider the surface the match was played on.
+
+In the TennisBT package, we have three files, grass_data, clay_data, and hard_data containing binomial win data for each player pairing in the training set on each surface.
+
+```{r}
+nrow(grass_data)
+nrow(clay_data)
+nrow(hard_data)
+```
+
+We can see that the vast majority of matches are played on a hard court, few matches are played on grass. In fact, only 7 of the 56 WTA tournaments are plated on grass in each calendar year. With this implying low data availability, we expect a larger degree of error in the grass data.
+
+```{r}
+grass_btm <- BTm(cbind(win1,win2), factor(player1), factor(player2), data=grass_data)
+hard_btm <- BTm(cbind(win1,win2), factor(player1), factor(player2), data=hard_data)
+clay_btm <- BTm(cbind(win1,win2), factor(player1), factor(player2), data=clay_data)
+```
+
+Now we will rank the top 10 players on each surface, and show the differences between them. First, in the grass court table we see some very high standard errors, due to the low number of matches played on grass.
+
+```{r}
+grass_df <- as.data.frame(BTabilities(grass_btm))
+grass_df <- grass_df[order(-grass_df$ability),]
+head(grass_df,10)
+```
+
+```{r}
+hard_df <- as.data.frame(BTabilities(hard_btm))
+hard_df <- hard_df[order(-hard_df$ability),]
+head(hard_df,10)
+```
+
+```{r}
+clay_df <- as.data.frame(BTabilities(clay_btm))
+clay_df <- clay_df[order(-clay_df$ability),]
+head(clay_df,10)
+```
+
+We see that many of the players are very different on each surface, which motivates including surface. One solution is to train the three separate models, one on each surface, and predict each match with the model corresponding to the surface that it is on. However, as seen in the grass model, this results in very high errors as few matches were played on grass. Also, it is not true that matches on different surfaces are completely independent. If a player comfortably beats another on a hard court, it is a reasonable assumption that the same outcome will happen on either grass or clay, however, the probability of this occurring may be different.
+
 # Code for Section 4: Results
 
-<<<<<<< Updated upstream
+## Baseline Model
+
+This model will base player abilities on their WTA ranking points. Using points as opposed to rank allows for a finer grading of each player. For example, the difference in abilities of a player ranked $n$ and a player ranked $n+1$ may be different to the difference in abilities of a player ranked $n+1$ and $n+2$, despite having the same difference in rank. This difference will be reflected by the ranking points.
+
+```{r}
+data <- TennisTidyr(2022,2022,2023,20)
+train <- data$train
+test <- data$test
+players <- data$main_names
+```
+
+```{r}
+ranking_points <- data.frame(row.names = players)
+rp <- list()
+
+for (p in 1:length(players)) {
+  player <- players[p]
+  
+  # find the last occurrence of the name in winner_name or loser_name in 2022
+  last_occurrence_win <- tail(which(train$winner_name == player), 1)
+  last_occurrence_loss <- tail(which(train$loser_name == player), 1)
+  
+  win <- last_occurrence_loss < last_occurrence_win
+  if (win) {
+    rp[[player]] <- train$winner_rank_points[last_occurrence_win]
+  } else {
+    rp[[player]] <- train$loser_rank_points[last_occurrence_loss]
+  }
+}
+```
+
+We have now stored each player with their year-end ranking points for 2022, and will use these to predict the 2023 season.
+
+```{r}
+draws <- test[c('winner_name', "loser_name")]
+draws$winner_rp <- sapply(draws$winner_name, function(x) rp[[x]])
+draws$loser_rp <- sapply(draws$loser_name, function(x) rp[[x]])
+draws$pred <- draws$winner_rp/(draws$winner_rp+draws$loser_rp)
+```
+
+```{r}
+score_predictions(draws)
+```
+
+## Basic Model
+
+Here we reproduce the results for the standard BT model.
+
+First we will get the training data.
+
+```{r}
+data <- TennisTidyr(2013,2022,2023,20)
+train <- data$train
+test <- data$test
+players <- data$main_names
+```
+
+Now we can fit the BT model.
+
+```{r}
+btm <- BTm(outcome=1, factor(winner_name, levels=players), factor(loser_name, levels=players), 
+                    formula=~player, id='player', data=train)
+```
+
+```{r}
+summary(btm)
+```
+
+Finally we can predict the 2023 season and find the model scores.
+
+```{r}
+predictions <- predict_matches(test, players, btm)
+head(predictions)
+```
+
+```{r}
+score_predictions(predictions)
+```
+## Time Weighting
+
+Here we perform the search of $w$ parameters for the time weighting.
+
+```{r}
+data <- TennisTidyr(2013,2022,2023,20)
+train <- data$train
+test <- data$test
+players <- data$main_names
+```
+
+Test a model using each of the $w \in \{0.1,0.2,…1\}$.
+
+```{r}
+scores <- data.frame(matrix(0, ncol=5, nrow=10), row.names = seq(0.1,1,0.1))
+colnames(scores) <- c("Accuracy", "Avg Prob", "Avg Prob SE", "Avg Log Prob", "Avg Log Prob SE")
+
+row_count = 1
+for (recency_weighting in seq(0.1,1,0.1)) {
+  cat("w=",recency_weighting,"\n")
+  weights <- get_recency_weights(train, recency_weighting)
+  
+  btm <- BTm(outcome=1, factor(winner_name, levels=players), factor(loser_name, levels=players), 
+                    weights = weights, id='player', data=train)
+  
+  predictions <- predict_matches(test, players, btm)
+  score <- score_predictions(predictions)
+  
+  scores[row_count, ]["Accuracy"] <- score$accuracy
+  scores[row_count, ]["Avg Prob"] <- score$avg_probability
+  scores[row_count, ]["Avg Prob SE"] <- score$avg_prob_se
+  scores[row_count, ]["Avg Log Prob"] <- score$avg_log_probability
+  scores[row_count, ]["Avg Log Prob SE"] <- score$abg_log_prob_se
+  
+  row_count <- row_count + 1
+}
+scores
+```
 Before fitting the model on our training set, we must install the package that contains our training and test datasets:
 
 ```{r}
@@ -188,6 +351,199 @@ data()
 ```
 
 For model selection, we used a stepwise approach. The code used to produce the results in Table 2 is given below, along with the standard Bradley-Terry model with no covariates.
+
+```{r}
+dat <- TennisTidyr(2013, 2022, 2023, 20)
+dat_csv <- dat$train
+data_test <- dat$test
+players <- dat$main_names
+
+# Extracting necessary columns and removing NAs
+data <- data.frame(dat_csv[,c("winner_id", "winner_name", "winner_hand", "winner_ht", "w_ace", "w_df", "w_svpt", "w_1stIn", "w_1stWon",
+                              "w_2ndWon", "w_SvGms", "w_bpSaved", "w_bpFaced", "loser_id", "loser_name", "loser_hand", "loser_ht",
+                              "l_ace", "l_df", "l_svpt", "l_1stIn", "l_1stWon", "l_2ndWon", "l_SvGms", "l_bpSaved",
+                              "l_bpFaced", "surface")])
+data <- na.omit(data)
+attach(data)
+```
+
+```{r}
+# Extract all elements from winner_name and loser_name columns
+all_players <- data.frame(Player=c(winner_name,loser_name))
+# Count number of rows each unique player has in 'all_players' (i.e. each player's number of total wins & losses)
+count <- count(all_players, Player, name="Total_matches")
+# Only keep players who have played 20+ matches
+players <- filter(count, Total_matches >= 20)
+
+# Check that all the players in 'players' have won at least one match
+which( !(players$Player%in%winner_name) )
+
+# Make a dataframe showing the hand of each player
+hand <- data.frame(Player=c(winner_name,loser_name), Hand=c(winner_hand,loser_hand))
+hand <- distinct(hand) # eliminates duplicate rows
+# Eliminate players whose hand is unknown
+hand <- filter(hand, Hand != "U")
+# Similarly for height
+height <- data.frame(Player=c(winner_name,loser_name), Height=c(winner_ht,loser_ht))
+height <- distinct(height)
+
+# Make 'predictors' dataframe
+predictors <- players %>% inner_join(hand) %>% inner_join(height)
+predictors = predictors[,-2]
+# Convert characters to factors
+predictors$Player <- factor(predictors$Player)
+predictors$Hand <- factor(predictors$Hand)
+```
+
+```{r}
+# Create indices that allow us to extract matches where both the winner and loser must be in 'predictors$Player' and their hand is known
+indices_w <- winner_name %in% predictors$Player
+indices_l <- loser_name %in% predictors$Player
+indices_wh <- (winner_hand != "U")
+indices_lh <- (loser_hand != "U")
+indices <- indices_w == TRUE & indices_l == TRUE & indices_wh == TRUE & indices_lh == TRUE
+
+# Extract 'winner_name' and 'loser_name', and keeping only the matches marked TRUE by indices
+matches <- data.frame( Winner=factor(winner_name[indices]), Loser=factor(loser_name[indices]) )
+players <- unique( c(matches[,1], matches[,2]) )
+```
+
+```{r}
+##### Make new variables
+# Extract Surface variable for the matches we're considering
+Surface <- surface[indices]
+
+# Creating 3 dataframes for matches played on clay, grass, hard court
+ind_clay <- Surface == "Clay"
+ind_grass <- Surface == "Grass"
+ind_hard <- Surface =="Hard"
+matches_clay <- matches[ind_clay,]
+matches_grass <- matches[ind_grass,]
+matches_hard <- matches[ind_hard,]
+# Initial values for the variables we're aiming to find
+prev_wins_clay <- matrix(0, nrow=dim(matches_clay)[1], 2)
+prev_wins_grass <-matrix(0, nrow=dim(matches_grass)[1], 2)
+prev_wins_hard <- matrix(0, nrow=dim(matches_hard)[1], 2)
+
+func_clay <- func_surface(matches_clay, prev_wins_clay)
+func_grass <- func_surface(matches_grass, prev_wins_grass)
+func_hard <- func_surface(matches_hard, prev_wins_hard)
+```
+
+```{r}
+# Split 'matches' dataframe
+winners0 <- data.frame(Player=matches[,1])
+losers0 <- data.frame(Player=matches[,2])
+# Add these columns to the 'winners0' and 'losers0' dataframes
+# Hard court
+winners0$prev.wins.hard = rep(0,dim(winners0)[1])
+winners0$prev.wins.hard[which(ind_hard==TRUE)] <- func_hard[,1]
+losers0$prev.wins.hard = rep(0,dim(losers0)[1])
+losers0$prev.wins.hard[which(ind_hard==TRUE)] <- func_hard[,2]
+# Clay
+winners0$prev.wins.clay = rep(0,dim(winners0)[1])
+winners0$prev.wins.clay[which(ind_clay==TRUE)] <- func_clay[,1]
+losers0$prev.wins.clay = rep(0,dim(losers0)[1])
+losers0$prev.wins.clay[which(ind_clay==TRUE)] <- func_clay[,2]
+# Grass
+winners0$prev.wins.grass = rep(0,dim(winners0)[1])
+winners0$prev.wins.grass[which(ind_grass==TRUE)] <- func_grass[,1]
+losers0$prev.wins.grass = rep(0,dim(losers0)[1])
+losers0$prev.wins.grass[which(ind_grass==TRUE)] <- func_grass[,2]
+
+# Surface variable:
+winners0$Surface <- winners0$prev.wins.clay + winners0$prev.wins.grass + winners0$prev.wins.hard
+losers0$Surface <- losers0$prev.wins.clay + losers0$prev.wins.grass + losers0$prev.wins.hard
+winners0 <- winners0[,-(2:4)]
+losers0 <- losers0[,-(2:4)]
+
+variables <- func(matches, data, indices)
+```
+
+```{r}
+# Add in columns for new variables
+winners <- data.frame(winners0, variables$w_output)
+losers <- data.frame(losers0, variables$l_output)
+# Convert the 'Player' column to rows
+library(tibble)
+predictors = column_to_rownames(predictors, var="Player")
+
+# Combine everything into a single list
+data_for_model <- list(winners=winners, losers=losers, predictors=predictors)
+
+attach(data_test)
+```
+```{r}
+indices_test <- winner_name %in% players == TRUE & loser_name %in% players
+matches_test <- data.frame( Winner=factor(winner_name[indices_test]), Loser=factor(loser_name[indices_test]) )
+players_test <- unique( c(matches_test[,1], matches_test[,2]) )
+# Make sure Winner and Loser factors have same number of levels as # players
+levels(matches_test$Winner) <- levels(players_test)
+levels(matches_test$Loser) <- levels(players_test)
+
+##### Make new variables
+# Extract Surface variable for the matches we're considering
+Surface <- surface[indices_test]
+
+# Creating 3 dataframes for matches played on clay, grass, hard court
+ind_clay <- Surface == "Clay"
+ind_grass <- Surface == "Grass"
+ind_hard <- Surface =="Hard"
+matches_clay <- matches_test[ind_clay,]
+matches_grass <- matches_test[ind_grass,]
+matches_hard <- matches_test[ind_hard,]
+
+# Initial values for the variables we're aiming to find
+prev_wins_clay <- matrix(0, nrow=dim(matches_clay)[1], 2)
+prev_wins_grass <-matrix(0, nrow=dim(matches_grass)[1], 2)
+prev_wins_hard <- matrix(0, nrow=dim(matches_hard)[1], 2)
+
+# Apply func_surface
+func_clay <- func_surface(matches_clay, prev_wins_clay)
+func_grass <- func_surface(matches_grass, prev_wins_grass)
+func_hard <- func_surface(matches_hard, prev_wins_hard)
+
+# Split 'matches' dataframe
+winners0 <- data.frame(Player=matches_test[,1])
+losers0 <- data.frame(Player=matches_test[,2])
+```
+
+```{r}
+# Add these columns to the 'winners0' and 'losers0' dataframes
+# Hard court
+winners0$prev.wins.hard = rep(0,dim(winners0)[1])
+winners0$prev.wins.hard[which(ind_hard==TRUE)] <- func_hard[,1]
+losers0$prev.wins.hard = rep(0,dim(losers0)[1])
+losers0$prev.wins.hard[which(ind_hard==TRUE)] <- func_hard[,2]
+# Clay
+winners0$prev.wins.clay = rep(0,dim(winners0)[1])
+winners0$prev.wins.clay[which(ind_clay==TRUE)] <- func_clay[,1]
+losers0$prev.wins.clay = rep(0,dim(losers0)[1])
+losers0$prev.wins.clay[which(ind_clay==TRUE)] <- func_clay[,2]
+# Grass
+winners0$prev.wins.grass = rep(0,dim(winners0)[1])
+winners0$prev.wins.grass[which(ind_grass==TRUE)] <- func_grass[,1]
+losers0$prev.wins.grass = rep(0,dim(losers0)[1])
+losers0$prev.wins.grass[which(ind_grass==TRUE)] <- func_grass[,2]
+
+# Surface variable:
+winners0$Surface <- winners0$prev.wins.clay + winners0$prev.wins.grass + winners0$prev.wins.hard
+losers0$Surface <- losers0$prev.wins.clay + losers0$prev.wins.grass + losers0$prev.wins.hard
+winners0 <- winners0[,-(2:4)]
+losers0 <- losers0[,-(2:4)]
+```
+
+```{r}
+# Apply func
+variables <- func(matches_test, data_test, indices_test)
+
+# Add in columns
+winners_test <- data.frame(winners0, variables$w_output)
+losers_test <- data.frame(losers0, variables$l_output)
+# Combine everything into a single list
+data_for_model_test <- list(winners=winners_test, losers=losers_test, predictors=predictors[players_test,] )
+
+```
 
 ```{r}
 ##### Without covariates
@@ -246,6 +602,19 @@ model9 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
                 FirstWon + (1|Player),
               id="Player", data=data_for_model)
 
+# Remove NA predictions
+
+pred0$fit <- na.omit(pred0$fit)
+pred1$fit <- na.omit(pred1$fit)
+pred2$fit <- na.omit(pred2$fit)
+pred3$fit <- na.omit(pred3$fit)
+pred4$fit <- na.omit(pred4$fit)
+pred5$fit <- na.omit(pred5$fit)
+pred6$fit <- na.omit(pred6$fit)
+pred7$fit <- na.omit(pred7$fit)
+pred8$fit <- na.omit(pred8$fit)
+pred9$fit <- na.omit(pred9$fit)
+
 
 summary(model0)
 summary(model_full)
@@ -258,7 +627,6 @@ summary(model6)
 summary(model7)
 summary(model8)
 summary(model9)
-summary(model10)
 
 pred0 <- predict(model0, newdata=data_for_model_test0, type="response", se.fit=TRUE)
 pred_full <- predict(model_full, newdata=data_for_model_test, type="response", se.fit=TRUE)
@@ -473,5 +841,4 @@ plot_grid(timeplot1,timeplot2,nrow=1)
 
 # Github
 
-https://github.com/oijbaker/Tennis.git
-
+<https://github.com/oijbaker/Tennis.git>

@@ -81,6 +81,80 @@ time_weighting <- function(t, weight) {
   return(min(weight, weight^t))
 }
 
+func <- function(matches, data, indices) {
+
+  players <- unique( c(matches[,1], matches[,2]) )
+  # 'scores' keeps track of each player's numbers so far.
+  scores <- data.frame(Player=players,
+                       Ace=rep(0, length(players)), Df=rep(0, length(players)),
+                       Svpt=rep(0, length(players)), FirstIn=rep(0, length(players)),
+                       FirstWon=rep(0, length(players)), SecondWon=rep(0, length(players)),
+                       SvGms=rep(0, length(players)), BpSaved=rep(0, length(players)),
+                       BpFaced=rep(0, length(players)) )
+
+  # Extract relevant columns from 'data'
+  w_numbers <- data[indices, 5:13]
+  l_numbers <- data[indices, 18:26]
+
+  # 'w_output' and 'l_output' are the variables we want
+  w_output <- matrix( 0, dim(matches)[1], 9 ) # because there are 9 variables
+  w_output <- as.data.frame(w_output)
+  colnames(w_output) <- colnames(scores[-1])
+  l_output <- w_output
+
+  # Print to check dimensions are correct
+  #View(w_numbers)
+  #View(l_numbers)
+  #View(players)
+  #View(scores)
+  #View(w_output)
+  #View(l_output)
+
+
+  for (n in 2:dim(matches)[1]) {
+    prev_winner <- which(scores$Player==matches[n-1,1]) # gives row number of player who won the previous match
+    scores[prev_winner, 2:10] = w_numbers[n-1,] # replaces previous match winner's score with the numbers obtained from previous match data
+    # Same for losers
+    prev_loser <- which(scores$Player==matches[n-1,2])
+    scores[prev_loser, 2:10] = l_numbers[n-1,]
+
+    curr_player1 <- which(scores$Player==matches[n,1]) # gives row number of 1st player in upcoming match
+    curr_player2 <- which(scores$Player==matches[n,2]) # same for 2nd player
+    w_output[n,] <- scores[curr_player1, 2:10] # get current scores of 1st player in upcoming match
+    l_output[n,] <- scores[curr_player2, 2:10] # same for 2nd player
+  }
+
+  return( list(w_output=w_output, l_output=l_output) )
+}
+
+func_surface <- function(MATCHES, PREV_WINS) {
+
+  players <- unique( c(MATCHES[,1], MATCHES[,2]) )
+  scores <- data.frame(Player=players, Score=rep(0, length(players))) # 'scores' keeps track of their # previous wins on a surface
+  PREV_WINS <- matrix( 0, dim(MATCHES)[1], 2)
+
+  # Printing to see if it works
+  #View(matches_clay)
+  #View(matches_grass)
+  #View(matches_hard)
+  #View(prev_wins_clay)
+  #View(prev_wins_grass)
+  #View(prev_wins_hard)
+  #View(players)
+  #View(scores)
+  #View(PREV_WINS)
+
+  for (n in 2:dim(PREV_WINS)[1]) {
+    prev_winner <- which(scores$Player==MATCHES[n-1,1]) # gives row number of previous match winner in 'scores' df
+    scores[prev_winner, 2] = scores[prev_winner, 2] + 1 # updates previous match winner's score
+
+    curr_player1 <- which(scores$Player==MATCHES[n,1]) # gives row number of 1st player in upcoming match
+    curr_player2 <- which(scores$Player==MATCHES[n,2]) # same for 2nd player
+    PREV_WINS[n,] = c(scores[curr_player1, 2], scores[curr_player2, 2]) # gives current scores of players in upcomin match (unchanged if neither player were in previous match)
+  }
+
+  return(PREV_WINS)
+}
 
 get_recency_weights <- function(train_set, recency_weighting) {
   tryCatch(
@@ -101,7 +175,7 @@ get_recency_weights <- function(train_set, recency_weighting) {
 }
 
 
-predict <- function(player1, player2, df_coeff) {
+predict_ <- function(player1, player2, df_coeff) {
   lambda1 <- df_coeff[player1,1]
   lambda2 <- df_coeff[player2,1]
   if (is.na(lambda1)) {
@@ -124,7 +198,7 @@ predict_matches <- function(test_set, names, model) {
   for (i in 1:nrow(draws)) {
     player1 <- draws$winner_name[i]
     player2 <- draws$loser_name[i]
-    pred <- predict(player1, player2, df_coeff)
+    pred <- predict_(player1, player2, df_coeff)
     draws$pred[i] <- pred[2]
   }
 

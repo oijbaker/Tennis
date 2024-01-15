@@ -1,26 +1,46 @@
+---
+title: "Version3"
+author: "Grace Yan"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Just run without re-reading this section
+
+First, we load the .csv files for all the WTA matches in 2013-2021. (Change path to the appropriate folder, which should contain .csv files of only the 2013-2021 matches.)
+
+```{r, message=FALSE}
 library(readr)
 library(plyr)
+library(TennisBT)
+library(tidyverse)
+library(BradleyTerry2)
+
+data <- TennisTidyr(2013, 2022, 2023, 20)
+data_csv_test <- data$test
+data_csv_train <- data$train
+players <- data$main_names
+```
+
+```{r, message=FALSE}
 library(tidyr)
 library(dplyr)
-library(BradleyTerry2)
-library(TennisBT)
 
-# myfiles <- list.files(path = "/home/cr23868/Documents/Tennis/R_code/tennis_wta-master", pattern = ".csv", full.names=TRUE)
-# dat_csv <- ldply(myfiles, read_csv)
-
-dat <- TennisTidyr(2013, 2022, 2023, 20)
-dat_csv <- dat$train
-data_test <- dat$test
-players <- dat$main_names
-
-# Extracting necessary columns and removing NAs
-data <- data.frame(dat_csv[,c("winner_id", "winner_name", "winner_hand", "winner_ht", "w_ace", "w_df", "w_svpt", "w_1stIn", "w_1stWon",
+##### Extracting necessary columns and removing NAs
+data <- data.frame(data_csv_train[,c("winner_id", "winner_name", "winner_hand", "winner_ht", "w_ace", "w_df", "w_svpt", "w_1stIn", "w_1stWon",
                               "w_2ndWon", "w_SvGms", "w_bpSaved", "w_bpFaced", "loser_id", "loser_name", "loser_hand", "loser_ht",
                               "l_ace", "l_df", "l_svpt", "l_1stIn", "l_1stWon", "l_2ndWon", "l_SvGms", "l_bpSaved",
                               "l_bpFaced", "surface")])
 data <- na.omit(data)
 attach(data)
+```
 
+Creating 'players' which contains all the players who have played 20+ matches.
+
+```{r}
 # Extract all elements from winner_name and loser_name columns
 all_players <- data.frame(Player=c(winner_name,loser_name))
 # Count number of rows each unique player has in 'all_players' (i.e. each player's number of total wins & losses)
@@ -30,23 +50,38 @@ players <- filter(count, Total_matches >= 20)
 
 # Check that all the players in 'players' have won at least one match
 which( !(players$Player%in%winner_name) )
+```
 
+Starting with the 'hand' variable...
+
+```{r}
 # Make a dataframe showing the hand of each player
 hand <- data.frame(Player=c(winner_name,loser_name), Hand=c(winner_hand,loser_hand))
 hand <- distinct(hand) # eliminates duplicate rows
 # Eliminate players whose hand is unknown
 hand <- filter(hand, Hand != "U")
-# Similarly for height
+```
+
+Then 'height' (a similar process to 'hand')...
+
+```{r}
 height <- data.frame(Player=c(winner_name,loser_name), Height=c(winner_ht,loser_ht))
 height <- distinct(height)
+```
 
-# Make 'predictors' dataframe
+Next, we make the 'predictors' dataframe:
+
+```{r}
 predictors <- players %>% inner_join(hand) %>% inner_join(height)
 predictors = predictors[,-2]
 # Convert characters to factors
 predictors$Player <- factor(predictors$Player)
 predictors$Hand <- factor(predictors$Hand)
+```
 
+Then the 'matches' dataframe:
+
+```{r}
 # Create indices that allow us to extract matches where both the winner and loser must be in 'predictors$Player' and their hand is known
 indices_w <- winner_name %in% predictors$Player
 indices_l <- loser_name %in% predictors$Player
@@ -56,9 +91,12 @@ indices <- indices_w == TRUE & indices_l == TRUE & indices_wh == TRUE & indices_
 
 # Extract 'winner_name' and 'loser_name', and keeping only the matches marked TRUE by indices
 matches <- data.frame( Winner=factor(winner_name[indices]), Loser=factor(loser_name[indices]) )
-players <- unique( c(matches[,1], matches[,2]) )
+players <- unique( c(matches[,1], matches[,2]) ) # 335 players, just checking
+```
 
-##### Make new variables
+## Make continuous Surface variables
+
+```{r}
 # Extract Surface variable for the matches we're considering
 Surface <- surface[indices]
 
@@ -66,16 +104,17 @@ Surface <- surface[indices]
 ind_clay <- Surface == "Clay"
 ind_grass <- Surface == "Grass"
 ind_hard <- Surface =="Hard"
-matches_clay <- matches[ind_clay,]
-matches_grass <- matches[ind_grass,]
-matches_hard <- matches[ind_hard,]
+matches_clay <- matches[ind_clay,] # 5468 matches on clay
+matches_grass <- matches[ind_grass,] # 2281 on grass
+matches_hard <- matches[ind_hard,] # 13951 on hard court
+
 # Initial values for the variables we're aiming to find
 prev_wins_clay <- matrix(0, nrow=dim(matches_clay)[1], 2)
 prev_wins_grass <-matrix(0, nrow=dim(matches_grass)[1], 2)
 prev_wins_hard <- matrix(0, nrow=dim(matches_hard)[1], 2)
 
 func_surface <- function(MATCHES, PREV_WINS) {
-  
+
   players <- unique( c(MATCHES[,1], MATCHES[,2]) )
   scores <- data.frame(Player=players, Score=rep(0, length(players))) # 'scores' keeps track of their # previous wins on a surface
   PREV_WINS <- matrix( 0, dim(MATCHES)[1], 2)
@@ -103,6 +142,11 @@ func_surface <- function(MATCHES, PREV_WINS) {
   return(PREV_WINS)
 }
 
+```
+
+Thus, we obtain the variable we need by combining the three columns:
+
+```{r}
 func_clay <- func_surface(matches_clay, prev_wins_clay)
 func_grass <- func_surface(matches_grass, prev_wins_grass)
 func_hard <- func_surface(matches_hard, prev_wins_hard)
@@ -110,6 +154,7 @@ func_hard <- func_surface(matches_hard, prev_wins_hard)
 # Split 'matches' dataframe
 winners0 <- data.frame(Player=matches[,1])
 losers0 <- data.frame(Player=matches[,2])
+
 # Add these columns to the 'winners0' and 'losers0' dataframes
 # Hard court
 winners0$prev.wins.hard = rep(0,dim(winners0)[1])
@@ -132,38 +177,45 @@ winners0$Surface <- winners0$prev.wins.clay + winners0$prev.wins.grass + winners
 losers0$Surface <- losers0$prev.wins.clay + losers0$prev.wins.grass + losers0$prev.wins.hard
 winners0 <- winners0[,-(2:4)]
 losers0 <- losers0[,-(2:4)]
+```
 
-## Make other variables
+The 'Surface' variable here is the number of matches that player has won *on the surface that the current match is going to be played on.*
+
+## Making the other variables
+
+The large function below does the trick.
+
+```{r}
 func <- function(matches, data, indices) {
   
-  players <- unique( c(matches[,1], matches[,2]) )
-  # 'scores' keeps track of each player's numbers so far.
-  scores <- data.frame(Player=players,
-                       Ace=rep(0, length(players)), Df=rep(0, length(players)),
-                       Svpt=rep(0, length(players)), FirstIn=rep(0, length(players)),
-                       FirstWon=rep(0, length(players)), SecondWon=rep(0, length(players)),
-                       SvGms=rep(0, length(players)), BpSaved=rep(0, length(players)),
-                       BpFaced=rep(0, length(players)) )
-  
-  # Extract relevant columns from 'data'
-  w_numbers <- data[indices, 5:13]
-  l_numbers <- data[indices, 18:26]
-  
-  # 'w_output' and 'l_output' are the variables we want
-  w_output <- matrix( 0, dim(matches)[1], 9 ) # because there are 9 variables
-  w_output <- as.data.frame(w_output)
-  colnames(w_output) <- colnames(scores[-1])
-  l_output <- w_output
-  
-  # Print to check dimensions are correct
-  #View(w_numbers)
-  #View(l_numbers)
-  #View(players)
-  #View(scores)
-  #View(w_output)
-  #View(l_output)
-  
-  
+players <- unique( c(matches[,1], matches[,2]) )
+# 'scores' keeps track of each player's numbers so far.
+scores <- data.frame(Player=players,
+                     Ace=rep(0, length(players)), Df=rep(0, length(players)),
+                     Svpt=rep(0, length(players)), FirstIn=rep(0, length(players)),
+                     FirstWon=rep(0, length(players)), SecondWon=rep(0, length(players)),
+                     SvGms=rep(0, length(players)), BpSaved=rep(0, length(players)),
+                     BpFaced=rep(0, length(players)) )
+
+# Extract relevant columns from 'data'
+w_numbers <- data[indices, 5:13]
+l_numbers <- data[indices, 18:26]
+
+# 'w_output' and 'l_output' are the variables we want
+w_output <- matrix( 0, dim(matches)[1], 9 ) # because there are 9 variables
+w_output <- as.data.frame(w_output)
+colnames(w_output) <- colnames(scores[-1])
+l_output <- w_output
+
+# Print to check dimensions are correct
+#View(w_numbers)
+#View(l_numbers)
+#View(players)
+#View(scores)
+#View(w_output)
+#View(l_output)
+
+
   for (n in 2:dim(matches)[1]) {
     prev_winner <- which(scores$Player==matches[n-1,1]) # gives row number of player who won the previous match
     scores[prev_winner, 2:10] = w_numbers[n-1,] # replaces previous match winner's score with the numbers obtained from previous match data
@@ -180,8 +232,20 @@ func <- function(matches, data, indices) {
   return( list(w_output=w_output, l_output=l_output) )
 }
 
-variables <- func(matches, data, indices)
+```
 
+Basically, what the function does is: at step n, (i) update the scores of the (n-1)th match players and then (ii) output the scores of the nth match players.
+
+```{r}
+# Get the variables we want
+variables <- func(matches, data, indices)
+```
+
+Each variable in 'variables' is the number of aces, df, etc. each player made in their previous match. These variables might provide some information about their current form.
+
+## Fit model with continuous variables
+
+```{r}
 # Add in columns for new variables
 winners <- data.frame(winners0, variables$w_output)
 losers <- data.frame(losers0, variables$l_output)
@@ -191,3 +255,22 @@ predictors = column_to_rownames(predictors, var="Player")
 
 # Combine everything into a single list
 data_for_model <- list(winners=winners, losers=losers, predictors=predictors)
+View(data_for_model)
+
+# Fit model
+model <- BTm(player1=winners, player2=losers,
+                  formula = ~  Hand[Player] + Height[Player] + Surface + Ace + Svpt + (1|Player),
+                  id="Player", data=data_for_model)
+model
+summary(model)
+
+```
+
+```{r}
+BTabilities(model)
+```
+
+```{r}
+predictions <- predict_matches(data_csv_test, players, model)
+score_predictions(predictions)
+```

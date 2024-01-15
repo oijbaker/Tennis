@@ -1,3 +1,5 @@
+library(TennisBT)
+
 ##### Without covariates
 data_for_model0 <- list(matches=matches, predictors=predictors)
 data_for_model_test0 <- list(matches=matches_test, predictors=predictors[players_test,] )
@@ -67,7 +69,6 @@ summary(model6)
 summary(model7)
 summary(model8)
 summary(model9)
-summary(model10)
 
 pred0 <- predict(model0, newdata=data_for_model_test0, type="response", se.fit=TRUE)
 pred_full <- predict(model_full, newdata=data_for_model_test, type="response", se.fit=TRUE)

@@ -14,12 +14,12 @@ model1 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
                     formula = ~  Hand[Player] + Height[Player] + Surface + Ace + Df + Svpt +
                       FirstIn + FirstWon + SecondWon + BpSaved + BpFaced + (1|Player),
                     id="Player", data=data_for_model)
-# Removing FirstIn
-model2 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
-                    formula = ~  Hand[Player] + Height[Player] + Surface + Ace + Df + Svpt +
-                      FirstWon + SecondWon + BpSaved + BpFaced + (1|Player),
-                    id="Player", data=data_for_model)
 # Removing BpFaced
+model2 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
+              formula = ~  Hand[Player] + Height[Player] + Surface + Ace + Df + Svpt +
+                FirstIn + FirstWon + SecondWon + BpSaved + (1|Player),
+              id="Player", data=data_for_model)
+# Removing FirstIn
 model3 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
               formula = ~  Hand[Player] + Height[Player] + Surface + Ace + Df + Svpt +
                 FirstWon + SecondWon + BpSaved + (1|Player),
@@ -39,7 +39,21 @@ model6 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
               formula = ~  Height[Player] + Surface + Ace + Df + Svpt +
                 FirstWon + (1|Player),
               id="Player", data=data_for_model)
-
+# Removing Height
+model7 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
+              formula = ~  Surface + Ace + Df + Svpt +
+                FirstWon + (1|Player),
+              id="Player", data=data_for_model)
+# Removing Df
+model8 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
+              formula = ~  Surface + Ace + Svpt +
+                FirstWon + (1|Player),
+              id="Player", data=data_for_model)
+# Removing Ace
+model9 <- BTm(rep(1,dim(matches)[1]), player1=winners, player2=losers,
+              formula = ~  Surface + Svpt +
+                FirstWon + (1|Player),
+              id="Player", data=data_for_model)
 
 
 summary(model0)
@@ -50,6 +64,10 @@ summary(model3)
 summary(model4)
 summary(model5)
 summary(model6)
+summary(model7)
+summary(model8)
+summary(model9)
+summary(model10)
 
 pred0 <- predict(model0, newdata=data_for_model_test0, type="response", se.fit=TRUE)
 pred_full <- predict(model_full, newdata=data_for_model_test, type="response", se.fit=TRUE)
@@ -59,35 +77,50 @@ pred3 <- predict(model3, newdata=data_for_model_test, type="response", se.fit=TR
 pred4 <- predict(model4, newdata=data_for_model_test, type="response", se.fit=TRUE)
 pred5 <- predict(model5, newdata=data_for_model_test, type="response", se.fit=TRUE)
 pred6 <- predict(model6, newdata=data_for_model_test, type="response", se.fit=TRUE)
+pred7 <- predict(model7, newdata=data_for_model_test, type="response", se.fit=TRUE)
+pred8 <- predict(model8, newdata=data_for_model_test, type="response", se.fit=TRUE)
+pred9 <- predict(model9, newdata=data_for_model_test, type="response", se.fit=TRUE)
 
-mean(pred0$fit) # 0.5917155
-length(which(pred0$fit>0.5)) # 1285
-length(which(pred0$fit>0.5)) / length(pred0$fit) # 0.6576254
+mean(pred0$fit)
+length(which(pred0$fit>0.5))
+length(which(pred0$fit>0.5)) / length(pred0$fit)
 
-mean(pred_full$fit) # 0.5809942
-length(which(pred_full$fit>0.5)) # 1336
-length(which(pred_full$fit>0.5)) / length(pred_full$fit) # 0.6837257
+mean(pred_full$fit)
+length(which(pred_full$fit>0.5))
+length(which(pred_full$fit>0.5)) / length(pred_full$fit)
 
-mean(pred1$fit) # 0.5809969
-length(which(pred1$fit>0.5)) # 1336
-length(which(pred1$fit>0.5)) / length(pred1$fit) # 0.6837257
+mean(pred1$fit)
+length(which(pred1$fit>0.5))
+length(which(pred1$fit>0.5)) / length(pred1$fit)
 
-mean(pred2$fit) # 0.5809995
-length(which(pred2$fit>0.5)) # 1338
-length(which(pred2$fit>0.5)) / length(pred2$fit) # 0.6847492
+mean(pred2$fit)
+length(which(pred2$fit>0.5))
+length(which(pred2$fit>0.5)) / length(pred2$fit)
 
-mean(pred3$fit) # 0.5810482
-length(which(pred3$fit>0.5)) # 1338
-length(which(pred3$fit>0.5)) / length(pred3$fit) # 0.6847492
+mean(pred3$fit)
+length(which(pred3$fit>0.5))
+length(which(pred3$fit>0.5)) / length(pred3$fit)
 
-mean(pred4$fit) # 0.5811076
-length(which(pred4$fit>0.5)) # 1333
-length(which(pred4$fit>0.5)) / length(pred4$fit) # 0.6821904
+mean(pred4$fit)
+length(which(pred4$fit>0.5))
+length(which(pred4$fit>0.5)) / length(pred4$fit)
 
-mean(pred5$fit) # 0.5813334
-length(which(pred5$fit>0.5)) # 1329
-length(which(pred5$fit>0.5)) / length(pred5$fit) # 0.6801433
+mean(pred5$fit)
+length(which(pred5$fit>0.5))
+length(which(pred5$fit>0.5)) / length(pred5$fit)
 
-mean(pred6$fit) # 0.579767
-length(which(pred6$fit>0.5)) # 1316
-length(which(pred6$fit>0.5)) / length(pred6$fit) # 0.6734903
+mean(pred6$fit) 
+length(which(pred6$fit>0.5))
+length(which(pred6$fit>0.5)) / length(pred6$fit)
+
+mean(pred7$fit) 
+length(which(pred7$fit>0.5))
+length(which(pred7$fit>0.5)) / length(pred7$fit)
+
+mean(pred8$fit)
+length(which(pred8$fit>0.5))
+length(which(pred8$fit>0.5)) / length(pred8$fit)
+
+mean(pred9$fit)
+length(which(pred9$fit>0.5))
+length(which(pred9$fit>0.5)) / length(pred9$fit)
